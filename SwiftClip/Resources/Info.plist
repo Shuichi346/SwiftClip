@@ -28,5 +28,18 @@
 	<string>SwiftClip pastes into the previously focused app on your behalf when you select a history item.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>SwiftClip snippet outline item</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.swiftclip.snippet-outline-item</string>
+		</dict>
+	</array>
 </dict>
 </plist>

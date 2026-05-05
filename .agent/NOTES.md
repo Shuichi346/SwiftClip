@@ -135,6 +135,10 @@ Solution:
 - Dropping a snippet on a folder moves it to the end of that folder; dropping on another snippet inserts it before or after the target row depending on drop position.
 - Added `SnippetStoreReorderingTests` to cover folder reordering, same-folder snippet reordering, same-folder drop-to-end behavior, and cross-folder moves.
 
+Follow-up fix:
+- The custom `Transferable` payload type `app.swiftclip.snippet-outline-item` must be exported in `Resources/Info.plist`; otherwise archive builds warn that the app owns an undeclared type.
+- Folder and snippet outline rows use a full-width `contentShape(Rectangle())` drop area so cross-folder snippet drops do not depend on hitting only the visible label text.
+
 ## Verification Already Completed
 
 Debug build:
@@ -192,6 +196,22 @@ Result:
 - `SnippetStoreReorderingTests` passed for folder order, snippet order, same-folder drop-to-end behavior, and cross-folder snippet movement.
 - Test result bundle: `/private/tmp/swiftclip-derived/Logs/Test/Test-SwiftClip-2026.05.05_16-46-53-+0900.xcresult`
 
+Snippet outline UTI/drop target follow-up:
+
+```sh
+plutil -lint SwiftClip/Resources/Info.plist
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Release -destination generic/platform=macOS -archivePath /private/tmp/SwiftClip-codex-archive-20260505-1703.xcarchive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO archive
+./script/build_and_run.sh --verify
+```
+
+Result:
+- `Info.plist` lint passed.
+- Debug build, full test suite, Release archive, and launch verification succeeded.
+- The archived and Debug app `Contents/Info.plist` include `UTExportedTypeDeclarations` for `app.swiftclip.snippet-outline-item`.
+- The known AppIntents metadata warning still appears; the snippet-outline UTI archive warning did not appear.
+
 Release build:
 
 ```sh
@@ -217,6 +237,7 @@ Release `Info.plist` was checked with `plutil` and included:
 - Test excluded bundle IDs by copying from an excluded app.
 - Import a real user Clipy XML export if available, not only the checked-in test fixture.
 - Manually assign the `Main` shortcut and confirm the standalone popup appears next to the cursor in normal use. Build and launch verification passed, but the shortcut gesture itself still needs visual confirmation with a configured shortcut.
+- Manually drag a snippet from one folder to another in the snippet editor to confirm the full-width row drop target in normal pointer use.
 
 ## Design Notes For The Next Agent
 

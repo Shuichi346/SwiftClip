@@ -39,8 +39,11 @@ struct SnippetOutlineView: View {
     }
 
     private func folderRow(_ folder: SnippetSummary) -> some View {
-        Label(folder.title, systemImage: folder.isEnabled ? "folder" : "folder.badge.minus")
-            .foregroundStyle(folder.isEnabled ? .primary : .secondary)
+        outlineRow(
+            title: folder.title,
+            systemImage: folder.isEnabled ? "folder" : "folder.badge.minus",
+            isEnabled: folder.isEnabled
+        )
             .tag(SnippetSelection.folder(folder.id))
             .draggable(SnippetOutlineDragItem.folder(folder.id))
             .dropDestination(for: SnippetOutlineDragItem.self) { items, location in
@@ -49,13 +52,27 @@ struct SnippetOutlineView: View {
     }
 
     private func snippetRow(folderID: UUID, snippet: SnippetLeaf) -> some View {
-        Label(snippet.title, systemImage: "text.alignleft")
-            .foregroundStyle(snippet.isEnabled ? .primary : .secondary)
+        outlineRow(
+            title: snippet.title,
+            systemImage: "text.alignleft",
+            isEnabled: snippet.isEnabled
+        )
             .tag(SnippetSelection.snippet(folderID: folderID, snippetID: snippet.id))
             .draggable(SnippetOutlineDragItem.snippet(folderID: folderID, snippetID: snippet.id))
             .dropDestination(for: SnippetOutlineDragItem.self) { items, location in
                 handleDrop(items, target: .snippet(folderID: folderID, snippetID: snippet.id), location: location)
             }
+    }
+
+    private func outlineRow(title: String, systemImage: String, isEnabled: Bool) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .foregroundStyle(isEnabled ? .primary : .secondary)
     }
 
     @MainActor
