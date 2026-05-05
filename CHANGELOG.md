@@ -8,3 +8,4 @@
 - Changed the `Main` global shortcut to open a standalone History/Snippets popup next to the cursor instead of opening the menu-bar status item menu.
 - Added hover previews for snippet menu items and flattened the menu-bar Snippets section so folders are visible directly below the Snippets header.
 - Added drag-and-drop reordering for snippet folders and snippets, including moving snippets between folders.
+- Declared the snippet outline drag payload UTI in `Info.plist` and widened outline row drop targets so snippets can be moved between folders by dropping anywhere on the destination row.
