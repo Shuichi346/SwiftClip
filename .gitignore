@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+.swiftpm/
+Package.resolved
+/.build/
+/dist/

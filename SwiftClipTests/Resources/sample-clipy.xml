@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<folders>
+	<folder>
+		<title>NotebookLM</title>
+		<snippets>
+			<snippet>
+				<title>Summary Prompt</title>
+				<content>Summarize this source.&#10;Keep the answer concise.</content>
+			</snippet>
+			<snippet>
+				<title>Questions</title>
+				<content>Create five review questions.</content>
+			</snippet>
+		</snippets>
+	</folder>
+	<folder>
+		<title>使い方色々</title>
+		<snippets>
+			<snippet>
+				<title>Gemini用</title>
+				<content>以下を日本語で整理してください。&#10;箇条書きでお願いします。</content>
+			</snippet>
+		</snippets>
+	</folder>
+</folders>
