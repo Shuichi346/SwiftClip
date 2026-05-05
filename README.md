@@ -35,7 +35,7 @@ Open `SwiftClip` from the menu bar, choose `Snippet Editor`, and use Import to l
 
 ## Keyboard Shortcuts
 
-Shortcuts are user-configurable in Preferences. The main menu, editor, preferences, clear-history action, and extension-style paste actions all use the KeyboardShortcuts package.
+Shortcuts are user-configurable in Preferences. The Main shortcut opens the standalone History/Snippets popup next to the cursor; editor, preferences, clear-history, and extension-style paste actions also use the KeyboardShortcuts package.
 
 ## Privacy
 
