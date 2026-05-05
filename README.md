@@ -9,7 +9,7 @@
 
 # SwiftClip
 
-SwiftClip is a local-first macOS menu-bar clipboard manager and snippet launcher for macOS 26.0 or later. It keeps clipboard history, reusable snippets, preferences, and import/export data on the user's Mac, then pastes selected history or snippet items back into the previously focused app after Accessibility permission is granted.
+SwiftClip is a local-first macOS menu-bar clipboard manager and snippet launcher for macOS 26.0 or later. Reproducing the UI and usability of Clipy/Clipy. It keeps clipboard history, reusable snippets, preferences, and import/export data on the user's Mac, then pastes selected history or snippet items back into the previously focused app after Accessibility permission is granted.
 
 ## UI Preview
 
