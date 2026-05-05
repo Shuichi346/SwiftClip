@@ -3,26 +3,20 @@ import AppKit
 enum SnippetsMenuSection {
     @MainActor
     static func add(to menu: NSMenu, environment: AppEnvironment, target: StatusItemController) {
-        let submenu = NSMenu(title: L10n.string("menubar.snippets"))
-        let folders = environment.snippets.enabledFolders()
-
-        if folders.isEmpty {
-            let emptyItem = NSMenuItem(title: L10n.string("snippets.empty"), action: nil, keyEquivalent: "")
-            emptyItem.isEnabled = false
-            submenu.addItem(emptyItem)
-        } else {
-            for folder in folders {
-                submenu.addItem(folderItem(for: folder, environment: environment, target: target))
-            }
-        }
-
-        let rootItem = NSMenuItem(title: L10n.string("menubar.snippets"), action: nil, keyEquivalent: "")
-        rootItem.submenu = submenu
-        menu.addItem(rootItem)
+        addFlatSnippetSection(to: menu, environment: environment, target: target)
     }
 
     @MainActor
     static func addStandalone(to menu: NSMenu, environment: AppEnvironment, target: StatusItemController) {
+        addFlatSnippetSection(to: menu, environment: environment, target: target)
+    }
+
+    @MainActor
+    private static func addFlatSnippetSection(
+        to menu: NSMenu,
+        environment: AppEnvironment,
+        target: StatusItemController
+    ) {
         let headerItem = NSMenuItem(title: L10n.string("menubar.snippets"), action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         menu.addItem(headerItem)
@@ -61,6 +55,7 @@ enum SnippetsMenuSection {
                 )
                 item.target = target
                 item.representedObject = SnippetMenuPayload(folderID: folder.id, snippetID: snippet.id)
+                item.toolTip = snippet.content.isEmpty ? nil : snippet.content
                 folderMenu.addItem(item)
             }
         }
