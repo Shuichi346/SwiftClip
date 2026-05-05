@@ -184,5 +184,5 @@ private struct SnippetOutlineDragItem: Codable, Hashable, Transferable {
 }
 
 private extension UTType {
-    static let swiftClipSnippetOutlineItem = UTType(importedAs: "app.swiftclip.snippet-outline-item")
+    static let swiftClipSnippetOutlineItem = UTType(exportedAs: "app.swiftclip.snippet-outline-item")
 }

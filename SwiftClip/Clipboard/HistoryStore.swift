@@ -28,7 +28,9 @@ final class HistoryStore: ObservableObject {
             }
 
             let data = try Data(contentsOf: fileURL)
-            items = try JSONDecoder().decode([ClipboardItem].self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            items = try decoder.decode([ClipboardItem].self, from: data)
             Task {
                 await blobStore.sweep(keeping: Set(items.compactMap(\.blobFilename)))
             }
