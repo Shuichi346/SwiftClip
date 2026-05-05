@@ -30,6 +30,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         statusItem.button?.performClick(nil)
     }
 
+    func showStandalonePopupAtCursor() {
+        let popupMenu = NSMenu()
+        StandalonePopupMenuBuilder.populate(menu: popupMenu, environment: environment, target: self)
+
+        let cursorLocation = NSEvent.mouseLocation
+        let popupLocation = NSPoint(x: cursorLocation.x + 6, y: cursorLocation.y - 6)
+        popupMenu.popUp(positioning: nil, at: popupLocation, in: nil)
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
         rebuildMenu()
     }

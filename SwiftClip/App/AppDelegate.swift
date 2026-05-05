@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .mainMenu) { [weak self] in
             Task { @MainActor in
-                self?.statusItemController?.showMenu()
+                self?.statusItemController?.showStandalonePopupAtCursor()
             }
         }
         KeyboardShortcuts.onKeyUp(for: .clearHistory) { [weak self] in
