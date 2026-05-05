@@ -234,14 +234,16 @@ extension SnippetOutlineView {
 
             switch payload.kind {
             case .folder:
-                guard item == nil,
-                      childIndex >= 0,
-                      childIndex <= rootNodes.count,
-                      let sourceIndex = rootNodes.firstIndex(where: { $0.key == .folder(payload.folderID) }),
-                      childIndex != sourceIndex,
-                      childIndex != sourceIndex + 1 else {
+                guard let destination = folderDropDestination(
+                    in: outlineView,
+                    draggingInfo: info,
+                    proposedItem: item,
+                    proposedChildIndex: childIndex
+                ),
+                    isValidFolderDrop(folderID: payload.folderID, destination: destination) else {
                     return []
                 }
+                outlineView.setDropItem(nil, dropChildIndex: destination)
                 return .move
 
             case .snippet:
@@ -266,8 +268,13 @@ extension SnippetOutlineView {
 
             switch payload.kind {
             case .folder:
-                let destination = childIndex == NSOutlineViewDropOnItemIndex ? rootNodes.count : childIndex
-                guard destination >= 0 else {
+                guard let destination = folderDropDestination(
+                    in: outlineView,
+                    draggingInfo: info,
+                    proposedItem: item,
+                    proposedChildIndex: childIndex
+                ),
+                    isValidFolderDrop(folderID: payload.folderID, destination: destination) else {
                     return false
                 }
                 snippets.moveFolder(id: payload.folderID, toIndex: destination)
@@ -317,6 +324,71 @@ extension SnippetOutlineView {
                 }
                 return true
             }
+        }
+
+        private func folderDropDestination(
+            in outlineView: NSOutlineView,
+            draggingInfo info: NSDraggingInfo,
+            proposedItem item: Any?,
+            proposedChildIndex childIndex: Int
+        ) -> Int? {
+            if item == nil {
+                if childIndex == NSOutlineViewDropOnItemIndex {
+                    return rootNodes.count
+                }
+                guard childIndex >= 0,
+                      childIndex <= rootNodes.count else {
+                    return nil
+                }
+                return childIndex
+            }
+
+            guard let proposedNode = item as? SnippetOutlineNode,
+                  case .folder = proposedNode.key else {
+                return nil
+            }
+
+            // Folder rows are root-only. Source-list outlines often propose drops
+            // on a folder item; translate that row position back to a root index.
+            return rootFolderDropIndex(
+                in: outlineView,
+                draggingInfo: info,
+                overFolder: proposedNode
+            )
+        }
+
+        private func rootFolderDropIndex(
+            in outlineView: NSOutlineView,
+            draggingInfo info: NSDraggingInfo,
+            overFolder folder: SnippetOutlineNode
+        ) -> Int? {
+            let location = outlineView.convert(info.draggingLocation, from: nil)
+            let folderRow = outlineView.row(forItem: folder)
+            guard folderRow >= 0,
+                  let folderIndex = rootNodes.firstIndex(where: { $0 === folder }) else {
+                return nil
+            }
+
+            let row = outlineView.row(at: location)
+            if row >= 0 {
+                guard let rowNode = outlineView.item(atRow: row) as? SnippetOutlineNode,
+                      rowNode === folder else {
+                    return nil
+                }
+            }
+
+            let rowRect = outlineView.rect(ofRow: folderRow)
+            return location.y < rowRect.midY ? folderIndex : folderIndex + 1
+        }
+
+        private func isValidFolderDrop(folderID: UUID, destination: Int) -> Bool {
+            guard destination >= 0,
+                  destination <= rootNodes.count,
+                  let sourceIndex = rootNodes.firstIndex(where: { $0.key == .folder(folderID) }) else {
+                return false
+            }
+
+            return destination != sourceIndex && destination != sourceIndex + 1
         }
 
         private func subscribe(to store: SnippetStore) {
