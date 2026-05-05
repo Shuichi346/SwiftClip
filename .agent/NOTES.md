@@ -212,6 +212,23 @@ Result:
 - The archived and Debug app `Contents/Info.plist` include `UTExportedTypeDeclarations` for `app.swiftclip.snippet-outline-item`.
 - The known AppIntents metadata warning still appears; the snippet-outline UTI archive warning did not appear.
 
+### Startup history decode and snippet drag UTI runtime warnings
+
+The app logged `Could not load history: データのフォーマットが正しくないため、読み込むことができませんでした。` after writing history JSON with ISO-8601 dates because `HistoryStore.load()` used the default `JSONDecoder` date strategy.
+
+The snippet editor also logged `Type "app.swiftclip.snippet-outline-item" was expected to be imported in the Info.plist of SwiftClip.app, but it was exported instead.` because the `Transferable` payload used `UTType(importedAs:)` while `Resources/Info.plist` correctly declares that app-owned type under `UTExportedTypeDeclarations`.
+
+Solution:
+- Configure `HistoryStore.load()` with `JSONDecoder.dateDecodingStrategy = .iso8601`.
+- Use `UTType(exportedAs:)` for the snippet outline payload.
+- Keep `testLoadDecodesPersistedISO8601Dates()` in `HistoryStoreTests` so persisted history remains loadable.
+
+Verification:
+- `plutil -lint SwiftClip/Resources/Info.plist` passed.
+- `xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test` passed on 2026-05-05.
+- `./script/build_and_run.sh --verify` built and launched the Debug app; `pgrep -x SwiftClip` reported pid `66878`.
+- A targeted unified log query for `Could not load history`, `snippet-outline-item`, `TransferableSupportError`, and `layoutSubtreeIfNeeded` returned no SwiftClip entries after launch.
+
 Release build:
 
 ```sh
