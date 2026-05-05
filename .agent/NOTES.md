@@ -9,6 +9,8 @@ Last updated: 2026-05-05
 - The app uses `KeyboardShortcuts` from `https://github.com/sindresorhus/KeyboardShortcuts.git`, pinned from version `2.4.0`.
 - The bundle identifier used by the generated project is `app.swiftclip.SwiftClip`.
 - The app is configured as a menu-bar accessory app with `LSUIElement = true`.
+- The app icon is `SwiftClip/Resources/AppIcon.icns`, referenced from `Resources/Info.plist` as `CFBundleIconFile = AppIcon`.
+- The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
 
 ## Problems Encountered And Fixes
 
@@ -100,6 +102,28 @@ Solution:
 ./script/build_and_run.sh --verify
 ```
 
+### App icon was not packaged
+
+The app icon existed at the repository root as `icon.icns`, but Xcode builds did not use it as the application bundle icon.
+
+Solution:
+- Move it to `SwiftClip/Resources/AppIcon.icns`.
+- Add `CFBundleIconFile = AppIcon` to `SwiftClip/Resources/Info.plist`.
+- With synchronized Xcode file groups, the `.icns` file is copied into `Contents/Resources` automatically.
+- Verify with a Release build, `plutil -p <SwiftClip.app>/Contents/Info.plist`, and `cmp -s SwiftClip/Resources/AppIcon.icns <SwiftClip.app>/Contents/Resources/AppIcon.icns`.
+
+### Main shortcut opened the status-item menu
+
+The `Main` global shortcut initially called `statusItem.button?.performClick(nil)`, so it opened the menu-bar dropdown instead of the standalone snippet-style popup requested by the user.
+
+Solution:
+- Keep `StatusItemController.showMenu()` for actual menu-bar icon clicks.
+- Add `StatusItemController.showStandalonePopupAtCursor()` for the global shortcut path.
+- Route `KeyboardShortcuts.onKeyUp(for: .mainMenu)` to `showStandalonePopupAtCursor()`.
+- Build that popup through `StandalonePopupMenuBuilder`.
+- Present it with `NSMenu.popUp(positioning:at:in:)` at `NSEvent.mouseLocation`, offset slightly so it appears next to the cursor.
+- Preserve the root popup layout: History header, history range submenus, Snippets header, snippet folder submenus, then actions.
+
 ## Verification Already Completed
 
 Debug build:
@@ -128,6 +152,20 @@ Result:
 - Debug app launched successfully.
 - Debug app path: `build/DerivedData/Build/Products/Debug/SwiftClip.app`
 
+Shortcut popup verification:
+
+```sh
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test
+./script/build_and_run.sh --verify
+```
+
+Result:
+- `** BUILD SUCCEEDED **`
+- `** TEST SUCCEEDED **`
+- The app launched successfully after the standalone popup change.
+- Test result bundle: `/private/tmp/swiftclip-derived/Logs/Test/Test-SwiftClip-2026.05.05_13-04-42-+0900.xcresult`
+
 Release build:
 
 ```sh
@@ -140,6 +178,7 @@ Result:
 
 Release `Info.plist` was checked with `plutil` and included:
 - `CFBundleIdentifier = app.swiftclip.SwiftClip`
+- `CFBundleIconFile = AppIcon`
 - `LSUIElement = true`
 - `LSMinimumSystemVersion = 26.0`
 - `NSAppleEventsUsageDescription`
@@ -151,6 +190,7 @@ Release `Info.plist` was checked with `plutil` and included:
 - Copy large image/PDF payloads manually to confirm the 50 MB payload cap behavior.
 - Test excluded bundle IDs by copying from an excluded app.
 - Import a real user Clipy XML export if available, not only the checked-in test fixture.
+- Manually assign the `Main` shortcut and confirm the standalone popup appears next to the cursor in normal use. Build and launch verification passed, but the shortcut gesture itself still needs visual confirmation with a configured shortcut.
 
 ## Design Notes For The Next Agent
 
@@ -159,3 +199,4 @@ Release `Info.plist` was checked with `plutil` and included:
 - Clipboard blobs are stored separately from history metadata so large binary payloads do not bloat JSON.
 - `PasteEngine` suppresses self-capture around pasteboard writes so selecting an item from the menu does not immediately duplicate it in history.
 - Any future edits should preserve Swift 6 strict concurrency and keep AppKit-only APIs on the main actor.
+- Do not collapse `StandalonePopupMenuBuilder` back into `MainMenuBuilder`; they intentionally represent different presentation surfaces.

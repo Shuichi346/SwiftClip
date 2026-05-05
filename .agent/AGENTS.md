@@ -53,6 +53,14 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - GUI launch and process checks may require sandbox escalation. Request it instead of replacing the verification with a weaker check.
 - Manual Accessibility paste injection requires approving SwiftClip in System Settings. Do not mark paste injection fully verified without that approval and a real paste target.
 
+## Menu And Shortcut Behavior
+
+- Keep menu-bar icon clicks and global shortcut popup behavior separate.
+- The menu-bar icon click may use `statusItem.button?.performClick(nil)` because it is explicitly status-item anchored.
+- The `Main` global shortcut must not call the status-item click path. It must show the standalone popup next to the current cursor.
+- Build standalone shortcut popups through `StandalonePopupMenuBuilder` and present them with `NSMenu.popUp(positioning:at:in:)` using `NSEvent.mouseLocation`.
+- Preserve the standalone popup structure shown in the user reference: History header, history range submenus, Snippets header, snippet folder submenus, then action items.
+
 ## Persistence And Clipboard Behavior
 
 - Preserve the separation between JSON metadata and blob files. Do not inline large binary payloads into history JSON.
@@ -64,3 +72,4 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 
 - Record new build failures, warnings, manual verification gaps, and fixes in `.agent/NOTES.md`.
 - Keep `.agent/NOTES.md` factual and handoff-oriented; avoid work-log narration.
+- Record user-visible behavior corrections in `CHANGELOG.md` under `[Unreleased]`.
