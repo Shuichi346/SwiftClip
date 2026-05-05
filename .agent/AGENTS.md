@@ -1,0 +1,1 @@
+Plan SwiftClip/.agent/PLANS.md
