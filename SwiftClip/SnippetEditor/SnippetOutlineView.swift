@@ -1,188 +1,767 @@
-import CoreTransferable
+import AppKit
+import Combine
 import SwiftUI
-import UniformTypeIdentifiers
 
-struct SnippetOutlineView: View {
+struct SnippetOutlineView: NSViewRepresentable {
     @ObservedObject var snippets: SnippetStore
     @Binding var selection: SnippetSelection?
     @Binding var expandedFolderIDs: Set<UUID>
 
-    var body: some View {
-        List(selection: $selection) {
-            ForEach(snippets.allFolders()) { folder in
-                DisclosureGroup(
-                    isExpanded: Binding {
-                        expandedFolderIDs.contains(folder.id)
-                    } set: { isExpanded in
-                        if isExpanded {
-                            expandedFolderIDs.insert(folder.id)
-                        } else {
-                            expandedFolderIDs.remove(folder.id)
-                        }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            snippets: snippets,
+            selection: $selection,
+            expandedFolderIDs: $expandedFolderIDs
+        )
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let outlineView = NSOutlineView()
+        outlineView.style = .sourceList
+        outlineView.headerView = nil
+        outlineView.floatsGroupRows = false
+        outlineView.autosaveExpandedItems = false
+        outlineView.allowsMultipleSelection = false
+        outlineView.allowsEmptySelection = true
+        outlineView.usesAlternatingRowBackgroundColors = false
+        outlineView.backgroundColor = .clear
+        outlineView.rowHeight = 24
+        outlineView.intercellSpacing = NSSize(width: 0, height: 2)
+        outlineView.registerForDraggedTypes([.swiftClipSnippetOutlineNode])
+        outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
+
+        let column = NSTableColumn(identifier: .snippetOutlineColumn)
+        column.minWidth = 120
+        column.resizingMask = .autoresizingMask
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+
+        outlineView.dataSource = context.coordinator
+        outlineView.delegate = context.coordinator
+
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.documentView = outlineView
+
+        context.coordinator.update(
+            snippets: snippets,
+            selection: $selection,
+            expandedFolderIDs: $expandedFolderIDs,
+            outlineView: outlineView
+        )
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let outlineView = scrollView.documentView as? NSOutlineView else {
+            return
+        }
+
+        if let column = outlineView.tableColumns.first {
+            column.width = max(scrollView.contentSize.width, column.minWidth)
+        }
+
+        context.coordinator.update(
+            snippets: snippets,
+            selection: $selection,
+            expandedFolderIDs: $expandedFolderIDs,
+            outlineView: outlineView
+        )
+    }
+
+    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        if let outlineView = scrollView.documentView as? NSOutlineView {
+            outlineView.delegate = nil
+            outlineView.dataSource = nil
+        }
+        coordinator.dismantle()
+    }
+}
+
+@MainActor
+extension SnippetOutlineView {
+    @MainActor
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+        private var snippets: SnippetStore
+        private var selection: Binding<SnippetSelection?>
+        private var expandedFolderIDs: Binding<Set<UUID>>
+        private weak var outlineView: NSOutlineView?
+        private weak var subscribedStore: SnippetStore?
+        private var changeCancellable: AnyCancellable?
+        private var isReloadScheduled = false
+        private var needsReload = true
+        private var isApplyingExternalUpdate = false
+        private var rootNodes: [SnippetOutlineNode] = []
+        private var nodeByKey: [SnippetOutlineNode.Key: SnippetOutlineNode] = [:]
+        private var folderByID: [UUID: SnippetSummary] = [:]
+        private var snippetByKey: [SnippetOutlineNode.Key: SnippetLeaf] = [:]
+        private var lastStructure: [OutlineSection] = []
+
+        init(
+            snippets: SnippetStore,
+            selection: Binding<SnippetSelection?>,
+            expandedFolderIDs: Binding<Set<UUID>>
+        ) {
+            self.snippets = snippets
+            self.selection = selection
+            self.expandedFolderIDs = expandedFolderIDs
+            super.init()
+            subscribe(to: snippets)
+        }
+
+        func update(
+            snippets: SnippetStore,
+            selection: Binding<SnippetSelection?>,
+            expandedFolderIDs: Binding<Set<UUID>>,
+            outlineView: NSOutlineView
+        ) {
+            self.snippets = snippets
+            self.selection = selection
+            self.expandedFolderIDs = expandedFolderIDs
+            self.outlineView = outlineView
+            subscribe(to: snippets)
+            applyCurrentState(to: outlineView)
+        }
+
+        func dismantle() {
+            changeCancellable?.cancel()
+            changeCancellable = nil
+            outlineView = nil
+            subscribedStore = nil
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+            guard let node = item as? SnippetOutlineNode else {
+                return rootNodes.count
+            }
+            return node.children.count
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+            guard let node = item as? SnippetOutlineNode else {
+                return rootNodes[index]
+            }
+            return node.children[index]
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+            guard let node = item as? SnippetOutlineNode else {
+                return false
+            }
+            return node.key.isFolder
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            objectValueFor tableColumn: NSTableColumn?,
+            byItem item: Any?
+        ) -> Any? {
+            guard let node = item as? SnippetOutlineNode else {
+                return nil
+            }
+            return title(for: node)
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            viewFor tableColumn: NSTableColumn?,
+            item: Any
+        ) -> NSView? {
+            guard let node = item as? SnippetOutlineNode else {
+                return nil
+            }
+
+            let cell = reusableCell(in: outlineView)
+            cell.imageView?.image = image(for: node)
+            cell.imageView?.contentTintColor = isEnabled(node) ? .secondaryLabelColor : .tertiaryLabelColor
+            cell.textField?.stringValue = title(for: node)
+            cell.textField?.textColor = isEnabled(node) ? .labelColor : .secondaryLabelColor
+            return cell
+        }
+
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            guard !isApplyingExternalUpdate,
+                  let outlineView = notification.object as? NSOutlineView else {
+                return
+            }
+
+            let selectedRow = outlineView.selectedRow
+            guard selectedRow >= 0,
+                  let node = outlineView.item(atRow: selectedRow) as? SnippetOutlineNode else {
+                selection.wrappedValue = nil
+                return
+            }
+
+            selection.wrappedValue = selectionValue(for: node)
+        }
+
+        func outlineViewItemDidExpand(_ notification: Notification) {
+            updateExpansion(from: notification, isExpanded: true)
+        }
+
+        func outlineViewItemDidCollapse(_ notification: Notification) {
+            updateExpansion(from: notification, isExpanded: false)
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            pasteboardWriterForItem item: Any
+        ) -> NSPasteboardWriting? {
+            guard let node = item as? SnippetOutlineNode,
+                  let payload = SnippetOutlineDragPayload(node: node),
+                  let encodedPayload = payload.encodedString else {
+                return nil
+            }
+
+            let pasteboardItem = NSPasteboardItem()
+            pasteboardItem.setString(encodedPayload, forType: .swiftClipSnippetOutlineNode)
+            return pasteboardItem
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            validateDrop info: NSDraggingInfo,
+            proposedItem item: Any?,
+            proposedChildIndex childIndex: Int
+        ) -> NSDragOperation {
+            guard let payload = SnippetOutlineDragPayload.decode(from: info.draggingPasteboard) else {
+                return []
+            }
+
+            switch payload.kind {
+            case .folder:
+                guard item == nil,
+                      childIndex >= 0,
+                      childIndex <= rootNodes.count,
+                      let sourceIndex = rootNodes.firstIndex(where: { $0.key == .folder(payload.folderID) }),
+                      childIndex != sourceIndex,
+                      childIndex != sourceIndex + 1 else {
+                    return []
+                }
+                return .move
+
+            case .snippet:
+                return validateSnippetDrop(
+                    payload,
+                    in: outlineView,
+                    proposedItem: item,
+                    proposedChildIndex: childIndex
+                )
+            }
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            acceptDrop info: NSDraggingInfo,
+            item: Any?,
+            childIndex: Int
+        ) -> Bool {
+            guard let payload = SnippetOutlineDragPayload.decode(from: info.draggingPasteboard) else {
+                return false
+            }
+
+            switch payload.kind {
+            case .folder:
+                let destination = childIndex == NSOutlineViewDropOnItemIndex ? rootNodes.count : childIndex
+                guard destination >= 0 else {
+                    return false
+                }
+                snippets.moveFolder(id: payload.folderID, toIndex: destination)
+                selection.wrappedValue = .folder(payload.folderID)
+                applyCurrentState(to: outlineView)
+                return true
+
+            case .snippet:
+                guard let snippetID = payload.snippetID,
+                      let target = snippetDropTarget(proposedItem: item, childIndex: childIndex) else {
+                    return false
+                }
+
+                if payload.folderID == target.folderID {
+                    guard let sourceIndex = target.folder.children.firstIndex(where: {
+                        $0.key == .snippet(folderID: payload.folderID, snippetID: snippetID)
+                    }) else {
+                        return false
                     }
-                ) {
-                    ForEach(folder.snippets.sorted { $0.sortIndex < $1.sortIndex }) { snippet in
-                        snippetRow(folderID: folder.id, snippet: snippet)
-                    }
-                    .onMove { source, destination in
-                        snippets.moveSnippets(in: folder.id, fromOffsets: source, toOffset: destination)
-                    }
-                } label: {
-                    folderRow(folder)
+
+                    // Same-folder moves use SwiftUI-style offsets; cross-folder drops use the index reported by NSOutlineView.
+                    snippets.moveSnippets(
+                        in: target.folderID,
+                        fromOffsets: IndexSet(integer: sourceIndex),
+                        toOffset: target.childIndex
+                    )
+                } else if target.isAppendDrop {
+                    snippets.moveSnippet(
+                        snippetID: snippetID,
+                        fromFolderID: payload.folderID,
+                        toFolderID: target.folderID
+                    )
+                } else {
+                    snippets.moveSnippet(
+                        snippetID: snippetID,
+                        fromFolderID: payload.folderID,
+                        toFolderID: target.folderID,
+                        toIndex: target.childIndex
+                    )
+                }
+
+                expandedFolderIDs.wrappedValue.insert(target.folderID)
+                selection.wrappedValue = .snippet(folderID: target.folderID, snippetID: snippetID)
+                applyCurrentState(to: outlineView)
+                if let targetNode = nodeByKey[.folder(target.folderID)] {
+                    outlineView.expandItem(targetNode)
+                }
+                return true
+            }
+        }
+
+        private func subscribe(to store: SnippetStore) {
+            guard store !== subscribedStore else {
+                return
+            }
+
+            changeCancellable?.cancel()
+            subscribedStore = store
+            changeCancellable = store.objectWillChange.sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.scheduleReload()
                 }
             }
-            .onMove { source, destination in
-                snippets.moveFolders(fromOffsets: source, toOffset: destination)
+        }
+
+        private func scheduleReload() {
+            needsReload = true
+            guard !isReloadScheduled else {
+                return
+            }
+
+            isReloadScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    return
+                }
+
+                self.isReloadScheduled = false
+                guard let outlineView = self.outlineView else {
+                    return
+                }
+                self.applyCurrentState(to: outlineView)
             }
         }
-        .listStyle(.sidebar)
-    }
 
-    private func folderRow(_ folder: SnippetSummary) -> some View {
-        outlineRow(
-            title: folder.title,
-            systemImage: folder.isEnabled ? "folder" : "folder.badge.minus",
-            isEnabled: folder.isEnabled
-        )
-            .tag(SnippetSelection.folder(folder.id))
-            .draggable(SnippetOutlineDragItem.folder(folder.id))
-            .dropDestination(for: SnippetOutlineDragItem.self) { items, location in
-                handleDrop(items, target: .folder(folder.id), location: location)
+        private func applyCurrentState(to outlineView: NSOutlineView) {
+            let folders = snippets.allFolders()
+            let structure = OutlineSection.sections(from: folders)
+            rebuildTree(from: folders)
+
+            let structureChanged = structure != lastStructure
+            isApplyingExternalUpdate = true
+            defer {
+                isApplyingExternalUpdate = false
             }
-    }
 
-    private func snippetRow(folderID: UUID, snippet: SnippetLeaf) -> some View {
-        outlineRow(
-            title: snippet.title,
-            systemImage: "text.alignleft",
-            isEnabled: snippet.isEnabled
-        )
-            .tag(SnippetSelection.snippet(folderID: folderID, snippetID: snippet.id))
-            .draggable(SnippetOutlineDragItem.snippet(folderID: folderID, snippetID: snippet.id))
-            .dropDestination(for: SnippetOutlineDragItem.self) { items, location in
-                handleDrop(items, target: .snippet(folderID: folderID, snippetID: snippet.id), location: location)
+            if structureChanged {
+                outlineView.reloadData()
+                lastStructure = structure
+            } else if needsReload {
+                reloadVisibleRows(in: outlineView)
             }
-    }
+            needsReload = false
 
-    private func outlineRow(title: String, systemImage: String, isEnabled: Bool) -> some View {
-        HStack {
-            Label(title, systemImage: systemImage)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
+            applyExpandedState(to: outlineView)
+            applySelectionState(to: outlineView)
         }
-        .contentShape(Rectangle())
-        .foregroundStyle(isEnabled ? .primary : .secondary)
-    }
 
-    @MainActor
-    private func handleDrop(
-        _ items: [SnippetOutlineDragItem],
-        target: SnippetOutlineDropTarget,
-        location: CGPoint
-    ) -> Bool {
-        guard let item = items.first else {
+        private func rebuildTree(from folders: [SnippetSummary]) {
+            var activeKeys = Set<SnippetOutlineNode.Key>()
+            var nextRootNodes: [SnippetOutlineNode] = []
+            var nextFolders: [UUID: SnippetSummary] = [:]
+            var nextSnippets: [SnippetOutlineNode.Key: SnippetLeaf] = [:]
+
+            for folder in folders {
+                let folderKey = SnippetOutlineNode.Key.folder(folder.id)
+                let folderNode = node(for: folderKey)
+                folderNode.parent = nil
+                folderNode.children = []
+                activeKeys.insert(folderKey)
+                nextFolders[folder.id] = folder
+
+                for snippet in folder.snippets.sorted(by: { $0.sortIndex < $1.sortIndex }) {
+                    let snippetKey = SnippetOutlineNode.Key.snippet(folderID: folder.id, snippetID: snippet.id)
+                    let snippetNode = node(for: snippetKey)
+                    snippetNode.parent = folderNode
+                    snippetNode.children = []
+                    folderNode.children.append(snippetNode)
+                    activeKeys.insert(snippetKey)
+                    nextSnippets[snippetKey] = snippet
+                }
+
+                nextRootNodes.append(folderNode)
+            }
+
+            nodeByKey = nodeByKey.filter { activeKeys.contains($0.key) }
+            rootNodes = nextRootNodes
+            folderByID = nextFolders
+            snippetByKey = nextSnippets
+        }
+
+        private func node(for key: SnippetOutlineNode.Key) -> SnippetOutlineNode {
+            if let node = nodeByKey[key] {
+                return node
+            }
+
+            let node = SnippetOutlineNode(key: key)
+            nodeByKey[key] = node
+            return node
+        }
+
+        private func reloadVisibleRows(in outlineView: NSOutlineView) {
+            let visibleRange = outlineView.rows(in: outlineView.visibleRect)
+            guard visibleRange.length > 0,
+                  !outlineView.tableColumns.isEmpty else {
+                return
+            }
+
+            let rows = IndexSet(integersIn: visibleRange.location..<(visibleRange.location + visibleRange.length))
+            let columns = IndexSet(integer: 0)
+            outlineView.reloadData(forRowIndexes: rows, columnIndexes: columns)
+        }
+
+        private func applyExpandedState(to outlineView: NSOutlineView) {
+            for node in rootNodes {
+                guard case .folder(let folderID) = node.key else {
+                    continue
+                }
+
+                if expandedFolderIDs.wrappedValue.contains(folderID) {
+                    outlineView.expandItem(node)
+                } else {
+                    outlineView.collapseItem(node)
+                }
+            }
+        }
+
+        private func applySelectionState(to outlineView: NSOutlineView) {
+            guard let selectionNode = node(for: selection.wrappedValue),
+                  outlineView.row(forItem: selectionNode) >= 0 else {
+                outlineView.deselectAll(nil)
+                return
+            }
+
+            let row = outlineView.row(forItem: selectionNode)
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+
+        private func node(for selection: SnippetSelection?) -> SnippetOutlineNode? {
+            switch selection {
+            case .folder(let folderID):
+                return nodeByKey[.folder(folderID)]
+            case .snippet(let folderID, let snippetID):
+                return nodeByKey[.snippet(folderID: folderID, snippetID: snippetID)]
+            case nil:
+                return nil
+            }
+        }
+
+        private func selectionValue(for node: SnippetOutlineNode) -> SnippetSelection {
+            switch node.key {
+            case .folder(let folderID):
+                return .folder(folderID)
+            case .snippet(let folderID, let snippetID):
+                return .snippet(folderID: folderID, snippetID: snippetID)
+            }
+        }
+
+        private func updateExpansion(from notification: Notification, isExpanded: Bool) {
+            guard !isApplyingExternalUpdate,
+                  let node = notification.userInfo?["NSObject"] as? SnippetOutlineNode,
+                  case .folder(let folderID) = node.key else {
+                return
+            }
+
+            if isExpanded {
+                expandedFolderIDs.wrappedValue.insert(folderID)
+            } else {
+                expandedFolderIDs.wrappedValue.remove(folderID)
+            }
+        }
+
+        private func reusableCell(in outlineView: NSOutlineView) -> NSTableCellView {
+            let identifier = NSUserInterfaceItemIdentifier.snippetOutlineCell
+            if let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
+                return cell
+            }
+
+            let cell = NSTableCellView()
+            cell.identifier = identifier
+
+            let imageView = NSImageView()
+            imageView.translatesAutoresizingMaskIntoConstraints = false
+            imageView.imageScaling = .scaleProportionallyDown
+            imageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+
+            let textField = NSTextField(labelWithString: "")
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            textField.lineBreakMode = .byTruncatingTail
+            textField.maximumNumberOfLines = 1
+            textField.font = .systemFont(ofSize: NSFont.systemFontSize)
+            textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+            cell.addSubview(imageView)
+            cell.addSubview(textField)
+            cell.imageView = imageView
+            cell.textField = textField
+
+            NSLayoutConstraint.activate([
+                imageView.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+                imageView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                imageView.widthAnchor.constraint(equalToConstant: 16),
+                imageView.heightAnchor.constraint(equalToConstant: 16),
+
+                textField.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 6),
+                textField.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -4),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+            ])
+
+            return cell
+        }
+
+        private func image(for node: SnippetOutlineNode) -> NSImage? {
+            switch node.key {
+            case .folder:
+                return NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+            case .snippet:
+                return NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: nil)
+            }
+        }
+
+        private func title(for node: SnippetOutlineNode) -> String {
+            switch node.key {
+            case .folder(let folderID):
+                return folderByID[folderID]?.title ?? ""
+            case .snippet:
+                return snippetByKey[node.key]?.title ?? ""
+            }
+        }
+
+        private func isEnabled(_ node: SnippetOutlineNode) -> Bool {
+            switch node.key {
+            case .folder(let folderID):
+                return folderByID[folderID]?.isEnabled ?? false
+            case .snippet:
+                return snippetByKey[node.key]?.isEnabled ?? false
+            }
+        }
+
+        private func validateSnippetDrop(
+            _ payload: SnippetOutlineDragPayload,
+            in outlineView: NSOutlineView,
+            proposedItem item: Any?,
+            proposedChildIndex childIndex: Int
+        ) -> NSDragOperation {
+            guard let snippetID = payload.snippetID else {
+                return []
+            }
+
+            if let proposedNode = item as? SnippetOutlineNode {
+                switch proposedNode.key {
+                case .folder:
+                    let targetIndex = childIndex == NSOutlineViewDropOnItemIndex
+                        ? proposedNode.children.count
+                        : childIndex
+                    guard isValidSnippetDrop(
+                        snippetID: snippetID,
+                        fromFolderID: payload.folderID,
+                        toFolder: proposedNode,
+                        childIndex: targetIndex
+                    ) else {
+                        return []
+                    }
+                    return .move
+
+                case .snippet(_, let proposedSnippetID):
+                    guard snippetID != proposedSnippetID,
+                          let parent = proposedNode.parent,
+                          let targetIndex = parent.children.firstIndex(where: { $0 === proposedNode }),
+                          isValidSnippetDrop(
+                            snippetID: snippetID,
+                            fromFolderID: payload.folderID,
+                            toFolder: parent,
+                            childIndex: targetIndex
+                          ) else {
+                        return []
+                    }
+                    outlineView.setDropItem(parent, dropChildIndex: targetIndex)
+                    return .move
+                }
+            }
+
+            return []
+        }
+
+        private func isValidSnippetDrop(
+            snippetID: UUID,
+            fromFolderID: UUID,
+            toFolder folder: SnippetOutlineNode,
+            childIndex: Int
+        ) -> Bool {
+            guard case .folder(let targetFolderID) = folder.key,
+                  childIndex >= 0,
+                  childIndex <= folder.children.count else {
+                return false
+            }
+
+            if fromFolderID == targetFolderID,
+               let sourceIndex = folder.children.firstIndex(where: {
+                   $0.key == .snippet(folderID: fromFolderID, snippetID: snippetID)
+               }),
+               (childIndex == sourceIndex || childIndex == sourceIndex + 1) {
+                return false
+            }
+
+            return true
+        }
+
+        private func snippetDropTarget(
+            proposedItem item: Any?,
+            childIndex: Int
+        ) -> SnippetDropTarget? {
+            if let folder = item as? SnippetOutlineNode,
+               case .folder(let folderID) = folder.key {
+                let targetIndex = childIndex == NSOutlineViewDropOnItemIndex ? folder.children.count : childIndex
+                return SnippetDropTarget(
+                    folder: folder,
+                    folderID: folderID,
+                    childIndex: targetIndex,
+                    isAppendDrop: childIndex == NSOutlineViewDropOnItemIndex
+                )
+            }
+
+            if let snippet = item as? SnippetOutlineNode,
+               case .snippet = snippet.key,
+               let folder = snippet.parent,
+               case .folder(let folderID) = folder.key,
+               let targetIndex = folder.children.firstIndex(where: { $0 === snippet }) {
+                return SnippetDropTarget(
+                    folder: folder,
+                    folderID: folderID,
+                    childIndex: targetIndex,
+                    isAppendDrop: false
+                )
+            }
+
+            return nil
+        }
+    }
+}
+
+private final class SnippetOutlineNode: NSObject {
+    enum Key: Hashable {
+        case folder(UUID)
+        case snippet(folderID: UUID, snippetID: UUID)
+
+        var isFolder: Bool {
+            if case .folder = self {
+                return true
+            }
             return false
         }
+    }
 
-        switch (item.kind, target) {
-        case (.folder, .folder(let targetFolderID)):
-            guard item.folderID != targetFolderID,
-                  let destination = folderInsertionIndex(targetFolderID: targetFolderID, location: location) else {
-                return false
-            }
+    let key: Key
+    weak var parent: SnippetOutlineNode?
+    var children: [SnippetOutlineNode] = []
 
-            snippets.moveFolder(id: item.folderID, toIndex: destination)
-            selection = .folder(item.folderID)
-            return true
+    init(key: Key) {
+        self.key = key
+    }
+}
 
-        case (.snippet, .folder(let targetFolderID)):
-            guard let snippetID = item.snippetID else {
-                return false
-            }
+private struct OutlineSection: Equatable {
+    let folderID: UUID
+    let snippetIDs: [UUID]
 
-            snippets.moveSnippet(snippetID: snippetID, fromFolderID: item.folderID, toFolderID: targetFolderID)
-            expandedFolderIDs.insert(targetFolderID)
-            selection = .snippet(folderID: targetFolderID, snippetID: snippetID)
-            return true
-
-        case (.snippet, .snippet(let targetFolderID, let targetSnippetID)):
-            guard let snippetID = item.snippetID,
-                  snippetID != targetSnippetID,
-                  let destination = snippetInsertionIndex(
-                    targetFolderID: targetFolderID,
-                    targetSnippetID: targetSnippetID,
-                    location: location
-                  ) else {
-                return false
-            }
-
-            snippets.moveSnippet(
-                snippetID: snippetID,
-                fromFolderID: item.folderID,
-                toFolderID: targetFolderID,
-                toIndex: destination
+    static func sections(from folders: [SnippetSummary]) -> [Self] {
+        folders.map { folder in
+            OutlineSection(
+                folderID: folder.id,
+                snippetIDs: folder.snippets
+                    .sorted { $0.sortIndex < $1.sortIndex }
+                    .map(\.id)
             )
-            expandedFolderIDs.insert(targetFolderID)
-            selection = .snippet(folderID: targetFolderID, snippetID: snippetID)
-            return true
-
-        case (.folder, .snippet):
-            return false
         }
-    }
-
-    private func folderInsertionIndex(targetFolderID: UUID, location: CGPoint) -> Int? {
-        let folders = snippets.allFolders()
-        guard let targetIndex = folders.firstIndex(where: { $0.id == targetFolderID }) else {
-            return nil
-        }
-
-        return location.y < 12 ? targetIndex : targetIndex + 1
-    }
-
-    private func snippetInsertionIndex(targetFolderID: UUID, targetSnippetID: UUID, location: CGPoint) -> Int? {
-        guard let targetFolder = snippets.folder(id: targetFolderID) else {
-            return nil
-        }
-
-        let snippets = targetFolder.snippets.sorted { $0.sortIndex < $1.sortIndex }
-        guard let targetIndex = snippets.firstIndex(where: { $0.id == targetSnippetID }) else {
-            return nil
-        }
-
-        return location.y < 12 ? targetIndex : targetIndex + 1
     }
 }
 
-private enum SnippetOutlineDropTarget {
-    case folder(UUID)
-    case snippet(folderID: UUID, snippetID: UUID)
+private struct SnippetDropTarget {
+    let folder: SnippetOutlineNode
+    let folderID: UUID
+    let childIndex: Int
+    let isAppendDrop: Bool
 }
 
-private struct SnippetOutlineDragItem: Codable, Hashable, Transferable {
-    enum Kind: String, Codable, Hashable {
+private struct SnippetOutlineDragPayload: Codable {
+    enum Kind: String, Codable {
         case folder
         case snippet
     }
 
-    var kind: Kind
-    var folderID: UUID
-    var snippetID: UUID?
+    let kind: Kind
+    let folderID: UUID
+    let snippetID: UUID?
 
-    static func folder(_ id: UUID) -> Self {
-        Self(kind: .folder, folderID: id)
+    var encodedString: String? {
+        guard let data = try? JSONEncoder().encode(self) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
     }
 
-    static func snippet(folderID: UUID, snippetID: UUID) -> Self {
-        Self(kind: .snippet, folderID: folderID, snippetID: snippetID)
+    init(kind: Kind, folderID: UUID, snippetID: UUID?) {
+        self.kind = kind
+        self.folderID = folderID
+        self.snippetID = snippetID
     }
 
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .swiftClipSnippetOutlineItem)
+    init?(node: SnippetOutlineNode) {
+        switch node.key {
+        case .folder(let folderID):
+            self.init(kind: .folder, folderID: folderID, snippetID: nil)
+        case .snippet(let folderID, let snippetID):
+            self.init(kind: .snippet, folderID: folderID, snippetID: snippetID)
+        }
+    }
+
+    static func decode(from pasteboard: NSPasteboard) -> Self? {
+        let strings = pasteboard.pasteboardItems?.compactMap {
+            $0.string(forType: .swiftClipSnippetOutlineNode)
+        } ?? []
+
+        for string in strings {
+            guard let data = string.data(using: .utf8),
+                  let payload = try? JSONDecoder().decode(Self.self, from: data) else {
+                continue
+            }
+            return payload
+        }
+
+        guard let string = pasteboard.string(forType: .swiftClipSnippetOutlineNode),
+              let data = string.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(Self.self, from: data)
     }
 }
 
-private extension UTType {
-    static let swiftClipSnippetOutlineItem = UTType(exportedAs: "app.swiftclip.snippet-outline-item")
+private extension NSPasteboard.PasteboardType {
+    static let swiftClipSnippetOutlineNode = NSPasteboard.PasteboardType("app.swiftclip.snippet-outline-node")
+}
+
+private extension NSUserInterfaceItemIdentifier {
+    static let snippetOutlineColumn = NSUserInterfaceItemIdentifier("SnippetOutlineColumn")
+    static let snippetOutlineCell = NSUserInterfaceItemIdentifier("SnippetOutlineCell")
 }
