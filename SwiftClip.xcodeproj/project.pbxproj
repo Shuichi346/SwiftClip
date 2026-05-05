@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 71;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -26,30 +26,18 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8F2ECA702D3F4E9D8B7A5101 /* Exceptions for "SwiftClip" folder in "SwiftClip" target */ = {
+		8F2ECA702D3F4E9D8B7A5101 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Resources/Info.plist,
-				Resources/SwiftClip.entitlements,
 			);
 			target = 8F2ECA202D3F4E9D8B7A5101 /* SwiftClip */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		8F2ECA302D3F4E9D8B7A5101 /* SwiftClip */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				8F2ECA702D3F4E9D8B7A5101 /* Exceptions for "SwiftClip" folder in "SwiftClip" target */,
-			);
-			path = SwiftClip;
-			sourceTree = "<group>";
-		};
-		8F2ECA312D3F4E9D8B7A5101 /* SwiftClipTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SwiftClipTests;
-			sourceTree = "<group>";
-		};
+		8F2ECA302D3F4E9D8B7A5101 /* SwiftClip */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (8F2ECA702D3F4E9D8B7A5101 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SwiftClip; sourceTree = "<group>"; };
+		8F2ECA312D3F4E9D8B7A5101 /* SwiftClipTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = SwiftClipTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,7 +159,6 @@
 			packageReferences = (
 				8F2ECA362D3F4E9D8B7A5101 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = 8F2ECA122D3F4E9D8B7A5101 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -343,7 +330,7 @@
 		8F2ECA612D3F4E9D8B7A5101 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
+				ARCHS = "$(ARCHS_STANDARD)";
 				CODE_SIGN_ENTITLEMENTS = SwiftClip/Resources/SwiftClip.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
@@ -373,7 +360,7 @@
 		8F2ECA622D3F4E9D8B7A5101 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
+				ARCHS = "$(ARCHS_STANDARD)";
 				CODE_SIGN_ENTITLEMENTS = SwiftClip/Resources/SwiftClip.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
