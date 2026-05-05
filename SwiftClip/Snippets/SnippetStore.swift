@@ -113,6 +113,65 @@ final class SnippetStore: ObservableObject {
         persist()
     }
 
+    func moveFolders(fromOffsets source: IndexSet, toOffset destination: Int) {
+        var orderedFolders = allFolders()
+        orderedFolders.move(fromOffsets: source, toOffset: destination)
+        folders = normalized(orderedFolders)
+        persist()
+    }
+
+    func moveFolder(id: UUID, toIndex destination: Int) {
+        var orderedFolders = allFolders()
+        guard let sourceIndex = orderedFolders.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let folder = orderedFolders.remove(at: sourceIndex)
+        let boundedDestination = min(max(0, destination), orderedFolders.count + 1)
+        let adjustedDestination = sourceIndex < boundedDestination ? boundedDestination - 1 : boundedDestination
+        orderedFolders.insert(folder, at: min(max(0, adjustedDestination), orderedFolders.count))
+        folders = normalized(orderedFolders)
+        persist()
+    }
+
+    func moveSnippets(in folderID: UUID, fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }) else {
+            return
+        }
+
+        var orderedSnippets = folders[folderIndex].snippets.sorted { $0.sortIndex < $1.sortIndex }
+        orderedSnippets.move(fromOffsets: source, toOffset: destination)
+        folders[folderIndex].snippets = normalizedSnippets(orderedSnippets)
+        persist()
+    }
+
+    func moveSnippet(snippetID: UUID, fromFolderID: UUID, toFolderID: UUID, toIndex destination: Int? = nil) {
+        guard let sourceFolderIndex = folders.firstIndex(where: { $0.id == fromFolderID }),
+              let targetFolderIndex = folders.firstIndex(where: { $0.id == toFolderID }) else {
+            return
+        }
+
+        if fromFolderID == toFolderID {
+            moveSnippetWithinFolder(folderIndex: sourceFolderIndex, snippetID: snippetID, toIndex: destination)
+            persist()
+            return
+        }
+
+        var sourceSnippets = folders[sourceFolderIndex].snippets.sorted { $0.sortIndex < $1.sortIndex }
+        guard let sourceSnippetIndex = sourceSnippets.firstIndex(where: { $0.id == snippetID }) else {
+            return
+        }
+
+        let snippet = sourceSnippets.remove(at: sourceSnippetIndex)
+        folders[sourceFolderIndex].snippets = normalizedSnippets(sourceSnippets)
+
+        var targetSnippets = folders[targetFolderIndex].snippets.sorted { $0.sortIndex < $1.sortIndex }
+        let insertionIndex = min(max(0, destination ?? targetSnippets.count), targetSnippets.count)
+        targetSnippets.insert(snippet, at: insertionIndex)
+        folders[targetFolderIndex].snippets = normalizedSnippets(targetSnippets)
+        persist()
+    }
+
     func folder(id: UUID) -> SnippetSummary? {
         folders.first { $0.id == id }
     }
@@ -192,7 +251,28 @@ final class SnippetStore: ObservableObject {
     }
 
     private func normalizeSnippetSortIndexes(folderIndex: Int) {
-        folders[folderIndex].snippets = folders[folderIndex].snippets.enumerated().map { offset, snippet in
+        folders[folderIndex].snippets = normalizedSnippets(folders[folderIndex].snippets)
+    }
+
+    private func moveSnippetWithinFolder(folderIndex: Int, snippetID: UUID, toIndex destination: Int?) {
+        var orderedSnippets = folders[folderIndex].snippets.sorted { $0.sortIndex < $1.sortIndex }
+        guard let sourceIndex = orderedSnippets.firstIndex(where: { $0.id == snippetID }) else {
+            return
+        }
+
+        let snippet = orderedSnippets.remove(at: sourceIndex)
+        if let destination {
+            let boundedDestination = min(max(0, destination), orderedSnippets.count + 1)
+            let adjustedDestination = sourceIndex < boundedDestination ? boundedDestination - 1 : boundedDestination
+            orderedSnippets.insert(snippet, at: min(max(0, adjustedDestination), orderedSnippets.count))
+        } else {
+            orderedSnippets.append(snippet)
+        }
+        folders[folderIndex].snippets = normalizedSnippets(orderedSnippets)
+    }
+
+    private func normalizedSnippets(_ snippets: [SnippetLeaf]) -> [SnippetLeaf] {
+        snippets.enumerated().map { offset, snippet in
             var copy = snippet
             copy.sortIndex = offset
             return copy

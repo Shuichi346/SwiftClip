@@ -124,6 +124,17 @@ Solution:
 - Present it with `NSMenu.popUp(positioning:at:in:)` at `NSEvent.mouseLocation`, offset slightly so it appears next to the cursor.
 - Preserve the root popup layout: History header, history range submenus, Snippets header, snippet folder submenus, then actions.
 
+### Snippet editor could not reorder snippets or move them between folders
+
+The snippet editor originally listed folders and snippets without reordering commands, so the saved `sortIndex` values could only follow creation order.
+
+Solution:
+- Added `SnippetStore` move APIs for folder ordering, same-folder snippet ordering, and cross-folder snippet moves.
+- Keep all persisted folder and snippet orders normalized through `sortIndex` after every move.
+- Added SwiftUI drag/drop support in `SnippetOutlineView` using `Transferable` payloads scoped to the snippet outline.
+- Dropping a snippet on a folder moves it to the end of that folder; dropping on another snippet inserts it before or after the target row depending on drop position.
+- Added `SnippetStoreReorderingTests` to cover folder reordering, same-folder snippet reordering, same-folder drop-to-end behavior, and cross-folder moves.
+
 ## Verification Already Completed
 
 Debug build:
@@ -165,6 +176,21 @@ Result:
 - `** TEST SUCCEEDED **`
 - The app launched successfully after the standalone popup change.
 - Test result bundle: `/private/tmp/swiftclip-derived/Logs/Test/Test-SwiftClip-2026.05.05_13-04-42-+0900.xcresult`
+
+Snippet editor drag/drop verification:
+
+```sh
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test
+./script/build_and_run.sh --verify
+```
+
+Result:
+- `** BUILD SUCCEEDED **`
+- `** TEST SUCCEEDED **`
+- Debug app launched successfully and `pgrep -x SwiftClip` verified the process.
+- `SnippetStoreReorderingTests` passed for folder order, snippet order, same-folder drop-to-end behavior, and cross-folder snippet movement.
+- Test result bundle: `/private/tmp/swiftclip-derived/Logs/Test/Test-SwiftClip-2026.05.05_16-46-53-+0900.xcresult`
 
 Release build:
 

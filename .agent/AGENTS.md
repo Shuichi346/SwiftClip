@@ -61,6 +61,13 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - Build standalone shortcut popups through `StandalonePopupMenuBuilder` and present them with `NSMenu.popUp(positioning:at:in:)` using `NSEvent.mouseLocation`.
 - Preserve the standalone popup structure shown in the user reference: History header, history range submenus, Snippets header, snippet folder submenus, then action items.
 
+## Snippet Editing
+
+- Keep snippet editor ordering changes inside `SnippetStore` move APIs so persistence and UI behavior share the same normalization path.
+- After moving folders or snippets, normalize `sortIndex` values before persisting.
+- Preserve drag/drop support in `SnippetOutlineView` for folder reordering, snippet reordering, and moving snippets between folders.
+- When changing snippet movement behavior, update or add tests in `SnippetStoreReorderingTests`.
+
 ## Persistence And Clipboard Behavior
 
 - Preserve the separation between JSON metadata and blob files. Do not inline large binary payloads into history JSON.

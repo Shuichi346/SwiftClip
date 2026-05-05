@@ -7,3 +7,4 @@
 - Added the app icon as `SwiftClip/Resources/AppIcon.icns` and wired it through `CFBundleIconFile` for Xcode builds and packaged app bundles.
 - Changed the `Main` global shortcut to open a standalone History/Snippets popup next to the cursor instead of opening the menu-bar status item menu.
 - Added hover previews for snippet menu items and flattened the menu-bar Snippets section so folders are visible directly below the Snippets header.
+- Added drag-and-drop reordering for snippet folders and snippets, including moving snippets between folders.
