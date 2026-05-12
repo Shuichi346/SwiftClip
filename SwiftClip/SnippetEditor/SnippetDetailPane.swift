@@ -99,24 +99,23 @@ struct SnippetDetailPane: View {
             KeyboardShortcuts.Recorder(L10n.string("editor.shortcut"), name: .snippet(snippet.id))
 
             Section(L10n.string("editor.snippetContent")) {
-                TextEditor(
+                AttachmentTextEditor(
                     text: Binding {
                         snippets.snippet(folderID: folderID, snippetID: snippet.id)?.content ?? snippet.content
                     } set: { content in
                         snippets.updateSnippet(folderID: folderID, snippetID: snippet.id, content: content)
-                    }
+                    },
+                    onFileDrop: { urls in
+                        snippets.addAttachmentURLs(urls.map(\.absoluteString), folderID: folderID, snippetID: snippet.id)
+                    },
+                    isFileTargeted: $isFileDropTarget
                 )
-                .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 220)
                 .overlay {
                     if isFileDropTarget {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(Color.accentColor, lineWidth: 2)
                     }
-                }
-                .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isFileDropTarget) { providers in
-                    addDroppedAttachments(providers, folderID: folderID, snippetID: snippet.id)
-                    return true
                 }
             }
 
@@ -140,28 +139,48 @@ struct SnippetDetailPane: View {
     private func attachmentsSection(folderID: UUID, snippet: SnippetLeaf) -> some View {
         Section {
             if snippet.attachmentURLs.isEmpty {
-                Text(L10n.string("editor.attachments.empty"))
-                    .foregroundStyle(.secondary)
+                attachmentDropRow(
+                    title: L10n.string("editor.attachments.empty"),
+                    folderID: folderID,
+                    snippetID: snippet.id
+                )
             } else {
                 ForEach(Array(snippet.attachmentURLs.enumerated()), id: \.offset) { index, attachmentURL in
                     attachmentRow(attachmentURL: attachmentURL) {
                         snippets.removeAttachmentURL(at: index, folderID: folderID, snippetID: snippet.id)
                     }
                 }
+
+                attachmentDropRow(
+                    title: L10n.string("editor.attachments.add"),
+                    folderID: folderID,
+                    snippetID: snippet.id
+                )
             }
         } header: {
-            HStack {
-                Text(L10n.string("editor.attachments"))
-                Spacer()
-                Button {
-                    isAddingAttachments = true
-                } label: {
-                    Image(systemName: "paperclip.badge.plus")
-                }
-                .buttonStyle(.borderless)
-                .help(L10n.string("editor.attachments.add"))
-            }
+            Text(L10n.string("editor.attachments"))
         }
+    }
+
+    private func attachmentDropRow(title: String, folderID: UUID, snippetID: UUID) -> some View {
+        Button {
+            isAddingAttachments = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "paperclip.badge.plus")
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isFileDropTarget) { providers in
+            addDroppedAttachments(providers, folderID: folderID, snippetID: snippetID)
+            return true
+        }
+        .help(L10n.string("editor.attachments.add"))
     }
 
     private func attachmentRow(attachmentURL: String, remove: @escaping () -> Void) -> some View {
@@ -228,5 +247,139 @@ struct SnippetDetailPane: View {
 private extension String {
     var nonEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+private struct AttachmentTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    var onFileDrop: ([URL]) -> Void
+    @Binding var isFileTargeted: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let textView = AttachmentDroppingTextView()
+        textView.delegate = context.coordinator
+        textView.onFileDrop = { urls in
+            onFileDrop(urls)
+        }
+        textView.onFileTargeted = { targeted in
+            isFileTargeted = targeted
+        }
+        textView.string = text
+        textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        textView.isRichText = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.allowsUndo = true
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.registerForDraggedTypes([.fileURL])
+        textView.textContainer?.containerSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.textContainer?.widthTracksTextView = true
+
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.parent = self
+        guard let textView = scrollView.documentView as? AttachmentDroppingTextView else {
+            return
+        }
+
+        textView.onFileDrop = { urls in
+            onFileDrop(urls)
+        }
+        textView.onFileTargeted = { targeted in
+            isFileTargeted = targeted
+        }
+
+        if textView.string != text {
+            textView.string = text
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: AttachmentTextEditor
+
+        init(_ parent: AttachmentTextEditor) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else {
+                return
+            }
+
+            parent.text = textView.string
+        }
+    }
+}
+
+private final class AttachmentDroppingTextView: NSTextView {
+    var onFileDrop: (([URL]) -> Void)?
+    var onFileTargeted: ((Bool) -> Void)?
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        if fileURLs(from: sender.draggingPasteboard).isEmpty {
+            return super.draggingEntered(sender)
+        }
+
+        onFileTargeted?(true)
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        if fileURLs(from: sender.draggingPasteboard).isEmpty {
+            return super.draggingUpdated(sender)
+        }
+
+        onFileTargeted?(true)
+        return .copy
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        onFileTargeted?(false)
+        super.draggingExited(sender)
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        let urls = fileURLs(from: sender.draggingPasteboard)
+        guard !urls.isEmpty else {
+            return super.performDragOperation(sender)
+        }
+
+        onFileTargeted?(false)
+        onFileDrop?(urls)
+        return true
+    }
+
+    override func concludeDragOperation(_ sender: (any NSDraggingInfo)?) {
+        onFileTargeted?(false)
+        super.concludeDragOperation(sender)
+    }
+
+    private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
+        guard let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [NSURL] else {
+            return []
+        }
+
+        return urls.compactMap(\.absoluteURL).filter(\.isFileURL)
     }
 }

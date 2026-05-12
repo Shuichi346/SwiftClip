@@ -276,3 +276,6 @@ Verification:
 
 Manual check still needed:
 - Paste a mixed text/file snippet into ChatGPT or another target chat field. The pasteboard now contains file objects, but each target app decides whether pasted file URLs become uploads.
+
+Follow-up:
+- SwiftUI `TextEditor.onDrop` did not reliably prevent dropped files from being inserted as absolute path text. `SnippetDetailPane` now uses a narrow `NSViewRepresentable` text editor bridge so `NSTextView` intercepts file URL drags and stores them as snippet attachments before the text system inserts a path.
