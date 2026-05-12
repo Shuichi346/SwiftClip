@@ -264,3 +264,15 @@ Release `Info.plist` was checked with `plutil` and included:
 - `PasteEngine` suppresses self-capture around pasteboard writes so selecting an item from the menu does not immediately duplicate it in history.
 - Any future edits should preserve Swift 6 strict concurrency and keep AppKit-only APIs on the main actor.
 - Do not collapse `StandalonePopupMenuBuilder` back into `MainMenuBuilder`; they intentionally represent different presentation surfaces.
+
+### Snippet attachments
+
+Snippets now persist `attachmentURLs` alongside text content. Dropping or selecting local files in the snippet editor stores file URLs as attachments instead of allowing TextEditor to insert absolute paths into snippet text. Selecting a snippet writes both optional `.string` text and file URL pasteboard objects, so apps that support pasted files can attach them while still receiving the prompt text.
+
+Verification:
+- `xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test` passed on 2026-05-12.
+- `./script/build_and_run.sh --verify` built and launched the Debug app on 2026-05-12.
+- `pgrep -x SwiftClip` returned pid `29823` after launch verification.
+
+Manual check still needed:
+- Paste a mixed text/file snippet into ChatGPT or another target chat field. The pasteboard now contains file objects, but each target app decides whether pasted file URLs become uploads.

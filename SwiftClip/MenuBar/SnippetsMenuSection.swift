@@ -55,7 +55,7 @@ enum SnippetsMenuSection {
                 )
                 item.target = target
                 item.representedObject = SnippetMenuPayload(folderID: folder.id, snippetID: snippet.id)
-                item.toolTip = snippet.content.isEmpty ? nil : snippet.content
+                item.toolTip = tooltip(for: snippet)
                 folderMenu.addItem(item)
             }
         }
@@ -63,5 +63,23 @@ enum SnippetsMenuSection {
         let folderItem = NSMenuItem(title: folder.title, action: nil, keyEquivalent: "")
         folderItem.submenu = folderMenu
         return folderItem
+    }
+
+    private static func tooltip(for snippet: SnippetLeaf) -> String? {
+        var parts: [String] = []
+        if !snippet.content.isEmpty {
+            parts.append(snippet.content)
+        }
+
+        let attachmentNames = snippet.attachmentURLs
+            .compactMap(URL.init(string:))
+            .map(\.lastPathComponent)
+            .filter { !$0.isEmpty }
+
+        if !attachmentNames.isEmpty {
+            parts.append(attachmentNames.joined(separator: ", "))
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
 }

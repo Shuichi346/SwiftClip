@@ -50,7 +50,12 @@ final class SnippetStore: ObservableObject {
     }
 
     @discardableResult
-    func addSnippet(to folderID: UUID?, title: String = L10n.string("editor.untitledSnippet"), content: String = "") -> UUID? {
+    func addSnippet(
+        to folderID: UUID?,
+        title: String = L10n.string("editor.untitledSnippet"),
+        content: String = "",
+        attachmentURLs: [String] = []
+    ) -> UUID? {
         let targetFolderID = folderID ?? folders.first?.id ?? addFolder()
         guard let folderIndex = folders.firstIndex(where: { $0.id == targetFolderID }) else {
             return nil
@@ -59,7 +64,13 @@ final class SnippetStore: ObservableObject {
         let snippetID = UUID()
         let sortIndex = folders[folderIndex].snippets.count
         folders[folderIndex].snippets.append(
-            SnippetLeaf(id: snippetID, title: title, content: content, sortIndex: sortIndex)
+            SnippetLeaf(
+                id: snippetID,
+                title: title,
+                content: content,
+                attachmentURLs: attachmentURLs,
+                sortIndex: sortIndex
+            )
         )
         persist()
         return snippetID
@@ -79,7 +90,14 @@ final class SnippetStore: ObservableObject {
         persist()
     }
 
-    func updateSnippet(folderID: UUID, snippetID: UUID, title: String? = nil, content: String? = nil, isEnabled: Bool? = nil) {
+    func updateSnippet(
+        folderID: UUID,
+        snippetID: UUID,
+        title: String? = nil,
+        content: String? = nil,
+        attachmentURLs: [String]? = nil,
+        isEnabled: Bool? = nil
+    ) {
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
             return
@@ -91,9 +109,34 @@ final class SnippetStore: ObservableObject {
         if let content {
             folders[folderIndex].snippets[snippetIndex].content = content
         }
+        if let attachmentURLs {
+            folders[folderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(attachmentURLs)
+        }
         if let isEnabled {
             folders[folderIndex].snippets[snippetIndex].isEnabled = isEnabled
         }
+        persist()
+    }
+
+    func addAttachmentURLs(_ attachmentURLs: [String], folderID: UUID, snippetID: UUID) {
+        guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
+              let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
+            return
+        }
+
+        let existing = folders[folderIndex].snippets[snippetIndex].attachmentURLs
+        folders[folderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(existing + attachmentURLs)
+        persist()
+    }
+
+    func removeAttachmentURL(at index: Int, folderID: UUID, snippetID: UUID) {
+        guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
+              let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }),
+              folders[folderIndex].snippets[snippetIndex].attachmentURLs.indices.contains(index) else {
+            return
+        }
+
+        folders[folderIndex].snippets[snippetIndex].attachmentURLs.remove(at: index)
         persist()
     }
 
@@ -202,6 +245,7 @@ final class SnippetStore: ObservableObject {
                         id: UUID(),
                         title: snippet.title,
                         content: snippet.content,
+                        attachmentURLs: snippet.attachmentURLs,
                         sortIndex: snippetOffset,
                         isEnabled: snippet.isEnabled
                     )
@@ -234,6 +278,7 @@ final class SnippetStore: ObservableObject {
                         id: snippet.id,
                         title: snippet.title,
                         content: snippet.content,
+                        attachmentURLs: snippet.attachmentURLs,
                         sortIndex: snippetOffset,
                         isEnabled: snippet.isEnabled
                     )
@@ -276,6 +321,16 @@ final class SnippetStore: ObservableObject {
             var copy = snippet
             copy.sortIndex = offset
             return copy
+        }
+    }
+
+    private func normalizedAttachmentURLs(_ attachmentURLs: [String]) -> [String] {
+        var seen: Set<String> = []
+        return attachmentURLs.filter { attachmentURL in
+            guard URL(string: attachmentURL)?.isFileURL == true else {
+                return false
+            }
+            return seen.insert(attachmentURL).inserted
         }
     }
 

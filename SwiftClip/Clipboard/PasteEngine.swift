@@ -30,7 +30,24 @@ final class PasteEngine {
     func paste(snippet: SnippetLeaf) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(snippet.content, forType: .string)
+        var didWrite = false
+
+        let urls = snippet.attachmentURLs
+            .compactMap(URL.init(string:))
+            .filter { $0.isFileURL }
+
+        if !urls.isEmpty {
+            didWrite = pasteboard.writeObjects(urls as [NSURL])
+        }
+
+        if !snippet.content.isEmpty {
+            didWrite = pasteboard.setString(snippet.content, forType: .string) || didWrite
+        }
+
+        guard didWrite else {
+            return
+        }
+
         onPasteboardWrite?()
 
         if preferences.state.pasteAfterSelection {

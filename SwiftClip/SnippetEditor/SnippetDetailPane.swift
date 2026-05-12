@@ -1,9 +1,13 @@
+import AppKit
 import KeyboardShortcuts
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SnippetDetailPane: View {
     @ObservedObject var snippets: SnippetStore
     var selection: SnippetSelection?
+    @State private var isAddingAttachments = false
+    @State private var isFileDropTarget = false
 
     var body: some View {
         switch selection {
@@ -94,17 +98,135 @@ struct SnippetDetailPane: View {
 
             KeyboardShortcuts.Recorder(L10n.string("editor.shortcut"), name: .snippet(snippet.id))
 
-            TextEditor(
-                text: Binding {
-                    snippets.snippet(folderID: folderID, snippetID: snippet.id)?.content ?? snippet.content
-                } set: { content in
-                    snippets.updateSnippet(folderID: folderID, snippetID: snippet.id, content: content)
+            Section(L10n.string("editor.snippetContent")) {
+                TextEditor(
+                    text: Binding {
+                        snippets.snippet(folderID: folderID, snippetID: snippet.id)?.content ?? snippet.content
+                    } set: { content in
+                        snippets.updateSnippet(folderID: folderID, snippetID: snippet.id, content: content)
+                    }
+                )
+                .font(.system(.body, design: .monospaced))
+                .frame(minHeight: 220)
+                .overlay {
+                    if isFileDropTarget {
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                    }
                 }
-            )
-            .font(.system(.body, design: .monospaced))
-            .frame(minHeight: 240)
+                .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isFileDropTarget) { providers in
+                    addDroppedAttachments(providers, folderID: folderID, snippetID: snippet.id)
+                    return true
+                }
+            }
+
+            attachmentsSection(folderID: folderID, snippet: snippet)
         }
         .formStyle(.grouped)
         .padding(20)
+        .fileImporter(
+            isPresented: $isAddingAttachments,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            guard case .success(let urls) = result else {
+                return
+            }
+
+            snippets.addAttachmentURLs(urls.map(\.absoluteString), folderID: folderID, snippetID: snippet.id)
+        }
+    }
+
+    private func attachmentsSection(folderID: UUID, snippet: SnippetLeaf) -> some View {
+        Section {
+            if snippet.attachmentURLs.isEmpty {
+                Text(L10n.string("editor.attachments.empty"))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(snippet.attachmentURLs.enumerated()), id: \.offset) { index, attachmentURL in
+                    attachmentRow(attachmentURL: attachmentURL) {
+                        snippets.removeAttachmentURL(at: index, folderID: folderID, snippetID: snippet.id)
+                    }
+                }
+            }
+        } header: {
+            HStack {
+                Text(L10n.string("editor.attachments"))
+                Spacer()
+                Button {
+                    isAddingAttachments = true
+                } label: {
+                    Image(systemName: "paperclip.badge.plus")
+                }
+                .buttonStyle(.borderless)
+                .help(L10n.string("editor.attachments.add"))
+            }
+        }
+    }
+
+    private func attachmentRow(attachmentURL: String, remove: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "doc")
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(fileName(for: attachmentURL))
+                    .lineLimit(1)
+                Text(filePath(for: attachmentURL))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button(action: remove) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help(L10n.string("editor.attachments.remove"))
+        }
+    }
+
+    private func addDroppedAttachments(_ providers: [NSItemProvider], folderID: UUID, snippetID: UUID) {
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+                guard let data,
+                      let attachmentURL = Self.fileURLString(from: data) else {
+                    return
+                }
+
+                Task { @MainActor in
+                    snippets.addAttachmentURLs([attachmentURL], folderID: folderID, snippetID: snippetID)
+                }
+            }
+        }
+    }
+
+    nonisolated private static func fileURLString(from data: Data) -> String? {
+        if let url = URL(dataRepresentation: data, relativeTo: nil), url.isFileURL {
+            return url.absoluteString
+        }
+
+        guard let string = String(data: data, encoding: .utf8),
+              let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)),
+              url.isFileURL else {
+            return nil
+        }
+        return url.absoluteString
+    }
+
+    private func fileName(for attachmentURL: String) -> String {
+        URL(string: attachmentURL)?.lastPathComponent.nonEmpty ?? attachmentURL
+    }
+
+    private func filePath(for attachmentURL: String) -> String {
+        URL(string: attachmentURL)?.path(percentEncoded: false) ?? attachmentURL
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        isEmpty ? nil : self
     }
 }
