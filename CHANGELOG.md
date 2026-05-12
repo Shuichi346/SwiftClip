@@ -11,3 +11,4 @@
 - Declared the snippet outline drag payload UTI in `Info.plist` and widened outline row drop targets so snippets can be moved between folders by dropping anywhere on the destination row.
 - Fixed startup loading of persisted clipboard history and aligned the snippet outline drag payload UTI with the app's exported type declaration.
 - Migrated the snippet sidebar to `NSOutlineView` so cross-folder snippet drag-and-drop works reliably.
+- Added snippet attachments for local files, images, and videos so snippets can paste file objects with optional text instead of pasting absolute paths as text.
