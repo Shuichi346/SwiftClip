@@ -71,8 +71,9 @@ struct ExcludedAppsTab: View {
             List {
                 ForEach(bundleIDs, id: \.self) { bundleID in
                     HStack {
-                        Text(bundleID)
+                        Text(displayName(for: bundleID))
                             .lineLimit(1)
+                            .help(bundleID)
                         Spacer()
                         Button {
                             remove(bundleID)
@@ -104,5 +105,13 @@ struct ExcludedAppsTab: View {
         }
 
         return panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier }
+    }
+
+    private func displayName(for bundleID: String) -> String {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            return bundleID
+        }
+
+        return url.lastPathComponent
     }
 }

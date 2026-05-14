@@ -25,15 +25,16 @@ struct PreferencesState: Codable, Equatable, Sendable {
 
     static let maximumHistoryLimit = 50
     static let maximumPayloadBytes = 50 * 1024 * 1024
-    static let defaultMixedSnippetPasteBundleIDs = [
+    static let defaultMixedSnippetPasteBundleIDs: [String] = []
+    private static let legacyDefaultMixedSnippetPasteBundleIDs = [
         "com.apple.Safari",
         "com.brave.Browser",
         "com.google.Chrome",
         "com.microsoft.edgemac",
         "com.thebrowser.Browser",
         "company.thebrowser.Browser",
-        "org.mozilla.firefox"
-    ].sorted()
+        "org.mozilla.firefox",
+    ]
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
@@ -75,10 +76,23 @@ struct PreferencesState: Codable, Equatable, Sendable {
         formatPDF = try container.decodeIfPresent(Bool.self, forKey: .formatPDF) ?? false
         formatImage = try container.decodeIfPresent(Bool.self, forKey: .formatImage) ?? false
         excludedBundleIDs = try container.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? []
-        mixedSnippetPasteBundleIDs = try container.decodeIfPresent(
+        mixedSnippetPasteBundleIDs = Self.normalizedMixedSnippetPasteBundleIDs(try container.decodeIfPresent(
             [String].self,
             forKey: .mixedSnippetPasteBundleIDs
-        ) ?? Self.defaultMixedSnippetPasteBundleIDs
+        ))
+    }
+
+    private static func normalizedMixedSnippetPasteBundleIDs(_ bundleIDs: [String]?) -> [String] {
+        guard let bundleIDs else {
+            return defaultMixedSnippetPasteBundleIDs
+        }
+
+        if Set(bundleIDs) == Set(legacyDefaultMixedSnippetPasteBundleIDs),
+           bundleIDs.count == legacyDefaultMixedSnippetPasteBundleIDs.count {
+            return defaultMixedSnippetPasteBundleIDs
+        }
+
+        return bundleIDs
     }
 }
 

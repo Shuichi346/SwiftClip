@@ -9,8 +9,7 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertFalse(state.formatImage)
         XCTAssertFalse(state.formatPDF)
         XCTAssertEqual(state.historyLimit, 5)
-        XCTAssertTrue(state.mixedSnippetPasteBundleIDs.contains("com.google.Chrome"))
-        XCTAssertTrue(state.mixedSnippetPasteBundleIDs.contains("com.apple.Safari"))
+        XCTAssertEqual(state.mixedSnippetPasteBundleIDs, [])
     }
 
     func testPreferenceRoundTrip() async throws {
@@ -37,7 +36,7 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(restored.state.mixedSnippetPasteBundleIDs, ["com.example.Chat"])
     }
 
-    func testLoadLegacyPreferencesUsesDefaultMixedSnippetPasteApps() throws {
+    func testLoadLegacyPreferencesLeavesMixedSnippetPasteAppsEmpty() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("json")
@@ -62,6 +61,31 @@ final class PreferencesStoreTests: XCTestCase {
             store.state.mixedSnippetPasteBundleIDs,
             PreferencesState.defaultMixedSnippetPasteBundleIDs
         )
+    }
+
+    func testLoadLegacyBrowserDefaultsLeavesMixedSnippetPasteAppsEmpty() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        let json = """
+        {
+          "mixedSnippetPasteBundleIDs" : [
+            "com.apple.Safari",
+            "com.brave.Browser",
+            "com.google.Chrome",
+            "com.microsoft.edgemac",
+            "com.thebrowser.Browser",
+            "company.thebrowser.Browser",
+            "org.mozilla.firefox"
+          ]
+        }
+        """
+        try Data(json.utf8).write(to: url, options: .atomic)
+
+        let store = PreferencesStore(fileURL: url)
+        store.load()
+
+        XCTAssertEqual(store.state.mixedSnippetPasteBundleIDs, [])
     }
 
     func testMixedSnippetPasteBundleIDsTrimSortAndRemoveDuplicates() {
