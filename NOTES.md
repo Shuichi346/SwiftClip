@@ -1,10 +1,10 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-05-05
+Last updated: 2026-05-14
 
 ## Implementation Context
 
-- The app was created from `.agent/PLANS.md` as a macOS 26+ SwiftUI/AppKit menu-bar clipboard manager.
+- The app was created from `PLANS.md` as a macOS 26+ SwiftUI/AppKit menu-bar clipboard manager.
 - The primary project is `SwiftClip.xcodeproj`.
 - The app uses `KeyboardShortcuts` from `https://github.com/sindresorhus/KeyboardShortcuts.git`, pinned from version `2.4.0`.
 - The bundle identifier used by the generated project is `app.swiftclip.SwiftClip`.
@@ -13,6 +13,15 @@ Last updated: 2026-05-05
 - The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
 
 ## Problems Encountered And Fixes
+
+### Mixed text-and-attachment snippet pastes split in chat fields
+
+Mixed snippets with text and an image attachment were pasted by some receivers as image-only, while text-only apps pasted only the text. This matched receivers choosing one representation or route from a mixed pasteboard payload rather than treating it as a complete snippet.
+
+Solution:
+- Write snippet text and file attachments as separate pasteboard items in `PasteEngine`.
+- For browser auto-paste targets, paste text first and then paste attachments after a short delay so file-upload chat fields can receive both.
+- Keep `SnippetAttachmentTests.testPasteSnippetWritesTextAndAttachmentsAsSeparatePasteboardItems()` to assert the multi-item pasteboard structure.
 
 ### Sandbox writes outside the active worktree
 
