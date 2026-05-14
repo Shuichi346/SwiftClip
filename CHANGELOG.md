@@ -13,3 +13,4 @@
 - Migrated the snippet sidebar to `NSOutlineView` so cross-folder snippet drag-and-drop works reliably.
 - Added snippet attachments for local files, images, and videos so snippets can paste file objects with optional text instead of pasting absolute paths as text.
 - Fixed mixed text-and-attachment snippet pasting so text and files are written as separate pasteboard items, with a browser-specific auto-paste path for apps that route file pastes through upload handling.
+- Added a Mixed Snippet Paste Apps preference list so users can choose which bundle IDs use the two-step text-then-attachments paste workaround.

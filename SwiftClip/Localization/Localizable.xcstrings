@@ -956,6 +956,23 @@
         }
       }
     },
+    "prefs.excluded.helper" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do not save clipboard changes copied from these apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらのアプリからコピーした内容は履歴に保存しません。"
+          }
+        }
+      }
+    },
     "prefs.excluded.placeholder" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -986,6 +1003,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bundle ID を削除"
+          }
+        }
+      }
+    },
+    "prefs.excluded.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excluded Apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "除外アプリ"
           }
         }
       }
@@ -1245,6 +1279,91 @@
         }
       }
     },
+    "prefs.mixedPaste.add" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Bundle ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundle ID を追加"
+          }
+        }
+      }
+    },
+    "prefs.mixedPaste.helper" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use two-step paste for snippets that contain both text and attachments."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストと添付ファイルの両方を含むスニペットで、2 段階ペーストを使用します。"
+          }
+        }
+      }
+    },
+    "prefs.mixedPaste.placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "com.google.Chrome"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "com.google.Chrome"
+          }
+        }
+      }
+    },
+    "prefs.mixedPaste.remove" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Bundle ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bundle ID を削除"
+          }
+        }
+      }
+    },
+    "prefs.mixedPaste.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mixed Snippet Paste Apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "混在スニペットのペースト対象アプリ"
+          }
+        }
+      }
+    },
     "prefs.menu.showNumbers" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1292,6 +1411,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "メニュータイトル上限: %d 文字"
+          }
+        }
+      }
+    },
+    "prefs.tab.apps" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリ"
           }
         }
       }

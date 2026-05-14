@@ -26,7 +26,7 @@ struct PreferencesWindow: View {
 
             ExcludedAppsTab(preferences: preferences)
                 .tabItem {
-                    Label(L10n.string("prefs.tab.excludedApps"), systemImage: "nosign.app")
+                    Label(L10n.string("prefs.tab.apps"), systemImage: "nosign.app")
                 }
 
             ShortcutsTab()

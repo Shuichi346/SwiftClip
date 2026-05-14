@@ -31,7 +31,8 @@ final class PasteEngine {
         let targetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
         if preferences.state.pasteAfterSelection,
-           shouldUseBrowserAttachmentPasteWorkaround(for: snippet, targetBundleID: targetBundleID) {
+           PermissionsProbe.isAccessibilityTrusted(prompt: false),
+           shouldUseTwoStepMixedSnippetPaste(for: snippet, targetBundleID: targetBundleID) {
             pasteSnippetTextThenAttachments(snippet)
             return
         }
@@ -150,21 +151,11 @@ final class PasteEngine {
         return didWrite
     }
 
-    private func shouldUseBrowserAttachmentPasteWorkaround(for snippet: SnippetLeaf, targetBundleID: String?) -> Bool {
+    private func shouldUseTwoStepMixedSnippetPaste(for snippet: SnippetLeaf, targetBundleID: String?) -> Bool {
         !snippet.content.isEmpty
             && !pasteboardAttachmentObjects(for: snippet).isEmpty
-            && Self.browserBundleIDs.contains(targetBundleID ?? "")
+            && preferences.shouldUseTwoStepMixedSnippetPaste(bundleID: targetBundleID)
     }
-
-    private static let browserBundleIDs: Set<String> = [
-        "com.apple.Safari",
-        "com.brave.Browser",
-        "com.google.Chrome",
-        "com.microsoft.edgemac",
-        "com.thebrowser.Browser",
-        "company.thebrowser.Browser",
-        "org.mozilla.firefox"
-    ]
 
     private func synthesizeCommandV() {
         guard PermissionsProbe.isAccessibilityTrusted(prompt: false) else {
