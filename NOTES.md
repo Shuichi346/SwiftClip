@@ -22,6 +22,7 @@ Solution:
 - Write snippet text and file attachments as separate pasteboard items in `PasteEngine`.
 - For bundle IDs listed in the Mixed Snippet Paste Apps preference, paste text first and then paste attachments after a short delay so file-upload chat fields can receive both.
 - Seed the preference with common browser bundle IDs, but let users add or remove apps instead of keeping the behavior hard-coded to browsers.
+- App-list preferences use an `NSOpenPanel` app picker and extract `Bundle(url:)?.bundleIdentifier` from selected `.app` bundles.
 - Keep `SnippetAttachmentTests.testPasteSnippetWritesTextAndAttachmentsAsSeparatePasteboardItems()` to assert the multi-item pasteboard structure.
 
 ### Sandbox writes outside the active worktree

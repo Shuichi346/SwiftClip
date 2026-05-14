@@ -956,6 +956,23 @@
         }
       }
     },
+    "prefs.excluded.choose" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose apps to exclude from clipboard history"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード履歴から除外するアプリを選択"
+          }
+        }
+      }
+    },
     "prefs.excluded.helper" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1105,6 +1122,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレーンテキストペーストトリガー"
+          }
+        }
+      }
+    },
+    "prefs.apps.choose" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose App..."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリを選択..."
+          }
+        }
+      }
+    },
+    "prefs.apps.panelMessage" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose one or more applications."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 つ以上のアプリケーションを選択してください。"
+          }
+        }
+      }
+    },
+    "prefs.apps.panelPrompt" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択"
           }
         }
       }
@@ -1292,6 +1360,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bundle ID を追加"
+          }
+        }
+      }
+    },
+    "prefs.mixedPaste.choose" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose apps that should use two-step mixed snippet paste"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "混在スニペットで 2 段階ペーストを使うアプリを選択"
           }
         }
       }
