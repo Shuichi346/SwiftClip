@@ -86,6 +86,57 @@
         }
       }
     },
+    "alert.largeAttachment.body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One or more selected files are 50 MB or larger. SwiftClip will copy them into its attachment storage before adding them to the snippet.\n\n%@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以下のファイルは50 MB以上です。SwiftClipはスニペットに追加する前に、添付ファイル用ストレージへコピーします。\n\n%@"
+          }
+        }
+      }
+    },
+    "alert.largeAttachment.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Large Attachment"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きな添付ファイル"
+          }
+        }
+      }
+    },
+    "alert.ok" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
     "Coming Soon" : {
 
     },

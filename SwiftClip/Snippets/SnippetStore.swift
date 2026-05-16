@@ -6,9 +6,14 @@ final class SnippetStore: ObservableObject {
     @Published private(set) var folders: [SnippetSummary] = []
 
     private let fileURL: URL
+    private let attachmentStore: SnippetAttachmentStore
 
-    init(fileURL: URL = FileLocations.snippetsIndexURL) {
+    init(
+        fileURL: URL = FileLocations.snippetsIndexURL,
+        attachmentDirectoryURL: URL = FileLocations.snippetAttachmentDirectoryURL
+    ) {
         self.fileURL = fileURL
+        attachmentStore = SnippetAttachmentStore(directoryURL: attachmentDirectoryURL)
     }
 
     func load() {
@@ -110,7 +115,9 @@ final class SnippetStore: ObservableObject {
             folders[folderIndex].snippets[snippetIndex].content = content
         }
         if let attachmentURLs {
+            let removedAttachmentURLs = folders[folderIndex].snippets[snippetIndex].attachmentURLs
             folders[folderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(attachmentURLs)
+            deleteUnreferencedManagedAttachments(removedAttachmentURLs)
         }
         if let isEnabled {
             folders[folderIndex].snippets[snippetIndex].isEnabled = isEnabled
@@ -129,6 +136,23 @@ final class SnippetStore: ObservableObject {
         persist()
     }
 
+    @discardableResult
+    func addAttachmentFiles(_ fileURLs: [URL], folderID: UUID, snippetID: UUID) throws -> [String] {
+        guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
+              let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
+            return []
+        }
+
+        let copiedURLs = try attachmentStore.copyFiles(fileURLs)
+        let copiedAttachmentURLs = copiedURLs.map(\.absoluteString)
+        let existing = folders[folderIndex].snippets[snippetIndex].attachmentURLs
+        folders[folderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(
+            existing + copiedAttachmentURLs
+        )
+        persist()
+        return copiedAttachmentURLs
+    }
+
     func removeAttachmentURL(at index: Int, folderID: UUID, snippetID: UUID) {
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }),
@@ -136,13 +160,20 @@ final class SnippetStore: ObservableObject {
             return
         }
 
+        let removedAttachmentURL = folders[folderIndex].snippets[snippetIndex].attachmentURLs[index]
         folders[folderIndex].snippets[snippetIndex].attachmentURLs.remove(at: index)
+        deleteUnreferencedManagedAttachments([removedAttachmentURL])
         persist()
     }
 
     func deleteFolder(id: UUID) {
+        let removedAttachmentURLs = folders
+            .first { $0.id == id }?
+            .snippets
+            .flatMap(\.attachmentURLs) ?? []
         folders.removeAll { $0.id == id }
         normalizeSortIndexes()
+        deleteUnreferencedManagedAttachments(removedAttachmentURLs)
         persist()
     }
 
@@ -151,8 +182,12 @@ final class SnippetStore: ObservableObject {
             return
         }
 
+        let removedAttachmentURLs = folders[folderIndex].snippets
+            .first { $0.id == snippetID }?
+            .attachmentURLs ?? []
         folders[folderIndex].snippets.removeAll { $0.id == snippetID }
         normalizeSnippetSortIndexes(folderIndex: folderIndex)
+        deleteUnreferencedManagedAttachments(removedAttachmentURLs)
         persist()
     }
 
@@ -228,7 +263,9 @@ final class SnippetStore: ObservableObject {
 
     func replaceAll(with importedFolders: [SnippetSummary]) throws {
         try writeBackup()
+        let removedAttachmentURLs = folders.flatMap { $0.snippets.flatMap(\.attachmentURLs) }
         folders = normalized(importedFolders)
+        deleteUnreferencedManagedAttachments(removedAttachmentURLs)
         persist()
     }
 
@@ -332,6 +369,13 @@ final class SnippetStore: ObservableObject {
             }
             return seen.insert(attachmentURL).inserted
         }
+    }
+
+    private func deleteUnreferencedManagedAttachments(_ attachmentURLs: [String]) {
+        let remainingAttachmentURLs = Set(folders.flatMap { $0.snippets.flatMap(\.attachmentURLs) })
+        Set(attachmentURLs)
+            .filter { !remainingAttachmentURLs.contains($0) }
+            .forEach(attachmentStore.deleteIfManaged)
     }
 
     private func persist() {
