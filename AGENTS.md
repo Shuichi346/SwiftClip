@@ -72,11 +72,14 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 
 - Preserve the separation between JSON metadata and blob files. Do not inline large binary payloads into history JSON.
 - Keep self-capture suppression around app-initiated pasteboard writes, or selecting a menu item can duplicate it in history.
+- For snippet attachments in `SwiftClip/Clipboard/PasteEngine.swift`, keep text and file attachments as separate `NSPasteboardWriting` items. Do not collapse mixed snippets into multiple representations of a single `NSPasteboardItem`.
+- Keep the two-step mixed snippet paste workaround driven by `PreferencesState.mixedSnippetPasteBundleIDs`, not by a hidden hard-coded browser list in `PasteEngine`.
+- App-list preferences should add bundle IDs through an `NSOpenPanel` application picker rather than asking users to type bundle identifiers manually.
 - Preserve deterministic tests for history, preferences, blob storage, and Clipy XML import/export when changing those areas.
 - SwiftData model types are present, but the current stores are file-backed for deterministic behavior. Do not silently migrate persistence without tests and a compatibility plan.
 
 ## Notes
 
-- Record new build failures, warnings, manual verification gaps, and fixes in `.agent/NOTES.md`.
-- Keep `.agent/NOTES.md` factual and handoff-oriented; avoid work-log narration.
+- Record new build failures, warnings, manual verification gaps, and fixes in root `NOTES.md`.
+- Keep `NOTES.md` factual and handoff-oriented; avoid work-log narration.
 - Record user-visible behavior corrections in `CHANGELOG.md` under `[Unreleased]`.

@@ -69,7 +69,7 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(snippet.attachmentURLs, [fileURL.absoluteString])
     }
 
-    func testPasteSnippetWritesTextAndFileURLs() throws {
+    func testPasteSnippetWritesTextAndAttachmentsAsSeparatePasteboardItems() throws {
         let fileURL = temporaryDirectory.appendingPathComponent("upload.txt", isDirectory: false)
         try Data("file".utf8).write(to: fileURL, options: .atomic)
         let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
@@ -97,6 +97,11 @@ final class SnippetAttachmentTests: XCTestCase {
 
         XCTAssertEqual(pasteboard.string(forType: .string), "Prompt text")
         XCTAssertEqual(urls?.map(\.absoluteString), [fileURL.absoluteString])
+
+        let items = try XCTUnwrap(pasteboard.pasteboardItems)
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(items[0].string(forType: .string), "Prompt text")
+        XCTAssertEqual(items[1].string(forType: .fileURL), fileURL.absoluteString)
     }
 
     private func makeStore() -> SnippetStore {

@@ -28,21 +28,19 @@ final class PasteEngine {
     }
 
     func paste(snippet: SnippetLeaf) {
+        let targetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+
+        if preferences.state.pasteAfterSelection,
+           PermissionsProbe.isAccessibilityTrusted(prompt: false),
+           shouldUseTwoStepMixedSnippetPaste(for: snippet, targetBundleID: targetBundleID) {
+            pasteSnippetTextThenAttachments(snippet)
+            return
+        }
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        var didWrite = false
-
-        let urls = snippet.attachmentURLs
-            .compactMap(URL.init(string:))
-            .filter { $0.isFileURL }
-
-        if !urls.isEmpty {
-            didWrite = pasteboard.writeObjects(urls as [NSURL])
-        }
-
-        if !snippet.content.isEmpty {
-            didWrite = pasteboard.setString(snippet.content, forType: .string) || didWrite
-        }
+        let objects = pasteboardObjects(for: snippet)
+        let didWrite = !objects.isEmpty && pasteboard.writeObjects(objects)
 
         guard didWrite else {
             return
@@ -96,6 +94,67 @@ final class PasteEngine {
             AppLog.clipboard.error("Could not paste history item: \(error.localizedDescription, privacy: .public)")
             return false
         }
+    }
+
+    private func pasteboardObjects(for snippet: SnippetLeaf) -> [NSPasteboardWriting] {
+        pasteboardTextObjects(for: snippet) + pasteboardAttachmentObjects(for: snippet)
+    }
+
+    private func pasteboardTextObjects(for snippet: SnippetLeaf) -> [NSPasteboardWriting] {
+        guard !snippet.content.isEmpty else {
+            return []
+        }
+
+        let textItem = NSPasteboardItem()
+        textItem.setString(snippet.content, forType: .string)
+        return [textItem]
+    }
+
+    private func pasteboardAttachmentObjects(for snippet: SnippetLeaf) -> [NSPasteboardWriting] {
+        let urls = snippet.attachmentURLs
+            .compactMap(URL.init(string:))
+            .filter { $0.isFileURL }
+        return urls.map { $0 as NSURL }
+    }
+
+    private func pasteSnippetTextThenAttachments(_ snippet: SnippetLeaf) {
+        guard writePasteboardObjects(pasteboardTextObjects(for: snippet)) else {
+            return
+        }
+
+        synthesizeCommandV()
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+
+            guard writePasteboardObjects(pasteboardAttachmentObjects(for: snippet)) else {
+                return
+            }
+
+            synthesizeCommandV()
+        }
+    }
+
+    private func writePasteboardObjects(_ objects: [NSPasteboardWriting]) -> Bool {
+        guard !objects.isEmpty else {
+            return false
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let didWrite = pasteboard.writeObjects(objects)
+
+        if didWrite {
+            onPasteboardWrite?()
+        }
+
+        return didWrite
+    }
+
+    private func shouldUseTwoStepMixedSnippetPaste(for snippet: SnippetLeaf, targetBundleID: String?) -> Bool {
+        !snippet.content.isEmpty
+            && !pasteboardAttachmentObjects(for: snippet).isEmpty
+            && preferences.shouldUseTwoStepMixedSnippetPaste(bundleID: targetBundleID)
     }
 
     private func synthesizeCommandV() {

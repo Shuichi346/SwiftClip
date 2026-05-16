@@ -9,7 +9,22 @@
 
 # SwiftClip
 
-SwiftClip is a local-first macOS menu-bar clipboard manager and snippet launcher for macOS 26.0 or later, inspired by the UI and usability of Clipy. It manages clipboard history, reusable snippets, preferences, and import/export data entirely on the user's Mac, and pastes selected history or snippet items back into the previously focused app once Accessibility permission is granted. Built with Swift 6 and SwiftUI, it supports Clipy-compatible XML import/export, global shortcuts, and format filtering.
+SwiftClip is a local-first macOS menu-bar clipboard manager and snippet launcher for macOS 26.0 or later, inspired by the UI and usability of Clipy. It keeps clipboard history, reusable snippets, snippet attachments, preferences, and import/export data on the user's Mac, then pastes selected history or snippet items back into the previously focused app once Accessibility permission is granted. Built with Swift 6, SwiftUI, and AppKit, it supports Clipy-compatible XML import/export, global shortcuts, app-specific capture rules, and mixed text-and-attachment snippet pasting.
+
+## Contents
+
+- [UI Preview](#ui-preview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Requirements](#requirements)
+- [Build From Source](#build-from-source)
+- [Testing](#testing)
+- [Usage](#usage)
+- [Preferences](#preferences)
+- [Local Data](#local-data)
+- [Project Structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
 ## UI Preview
 
@@ -23,9 +38,11 @@ The snippet editor organizes folders and snippets in a sidebar, with editable sn
 - Reusable snippet folders and snippet items with per-item enablement.
 - Standalone History/Snippets popup opened from a configurable global shortcut.
 - Snippet editor with drag-and-drop folder ordering, snippet ordering, and cross-folder snippet moves.
+- Snippet attachments for local files, images, and videos, with optional prompt text.
+- Mixed snippet paste support that can paste text first and attachments second for selected apps.
 - Clipy-compatible XML import and export for snippet migration.
 - Format filtering for plain text, RTF, RTFD, file URLs, URLs, PDFs, and images.
-- Excluded bundle IDs for apps that should not be captured.
+- App-specific preferences for excluded capture apps and mixed-snippet paste apps, selected through a standard app picker.
 - Local JSON metadata storage with separate blob files for larger clipboard payloads.
 - Launch-at-login preference backed by Service Management.
 
@@ -92,7 +109,20 @@ The tests cover blob storage, Clipy XML import/export, history persistence, menu
 2. Grant Accessibility permission when prompted if you want SwiftClip to paste selected items into the previously focused app.
 3. Use the menu-bar item to browse clipboard history, snippets, preferences, and app actions.
 4. Configure shortcuts in Preferences.
-5. Open Snippet Editor to create folders, edit snippets, assign snippet shortcuts, import Clipy XML, or export SwiftClip snippets.
+5. Open Snippet Editor to create folders, edit snippets, attach files, assign snippet shortcuts, import Clipy XML, or export SwiftClip snippets.
+
+## Preferences
+
+SwiftClip preferences are stored locally as JSON and are available from the menu-bar app.
+
+- **General**: launch at login and automatic paste after selecting a history item or snippet.
+- **Menu**: visible numbering and menu title length.
+- **Formats**: which pasteboard formats SwiftClip captures for history.
+- **Apps**: applications excluded from clipboard capture, plus **Mixed Snippet Paste Apps** for apps that should receive mixed snippets as two paste operations: text first, then attachments.
+- **Shortcuts**: global shortcuts for the main popup, snippet editor, preferences, and clear history actions.
+- **Extensions**: modifier-triggered paste behaviors such as plain-text paste, delete on select, and delete after paste.
+
+The app lists store bundle identifiers internally, but the preferences UI resolves installed apps and displays names such as `Firefox.app` for clarity. If an app cannot be resolved, SwiftClip falls back to showing the bundle ID.
 
 ## Local Data
 
@@ -103,6 +133,13 @@ SwiftClip stores app data under:
 ```
 
 Clipboard blobs are stored separately from the JSON history index so large binary payloads do not bloat metadata files.
+
+Current local files include:
+
+- `Preferences.json`
+- `History.json`
+- `Snippets.json`
+- `Blobs/`
 
 ## Project Structure
 
@@ -124,6 +161,7 @@ script/             Local build and launch helper
 
 - If package resolution fails, open `SwiftClip.xcodeproj` in Xcode and resolve packages, or rerun `xcodebuild -list -project SwiftClip.xcodeproj` with network access.
 - If automatic paste does not work, confirm SwiftClip is approved in System Settings for Accessibility.
+- If a mixed text-and-attachment snippet only pastes one part in a chat or upload field, add that app to **Preferences → Apps → Mixed Snippet Paste Apps**.
 - The Xcode warning `Metadata extraction skipped. No AppIntents.framework dependency found.` is known for this project and is not a build failure.
 
 ## License

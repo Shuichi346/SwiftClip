@@ -21,9 +21,79 @@ struct PreferencesState: Codable, Equatable, Sendable {
     var formatPDF = false
     var formatImage = false
     var excludedBundleIDs: [String] = []
+    var mixedSnippetPasteBundleIDs = Self.defaultMixedSnippetPasteBundleIDs
 
     static let maximumHistoryLimit = 50
     static let maximumPayloadBytes = 50 * 1024 * 1024
+    static let defaultMixedSnippetPasteBundleIDs: [String] = []
+    private static let legacyDefaultMixedSnippetPasteBundleIDs = [
+        "com.apple.Safari",
+        "com.brave.Browser",
+        "com.google.Chrome",
+        "com.microsoft.edgemac",
+        "com.thebrowser.Browser",
+        "company.thebrowser.Browser",
+        "org.mozilla.firefox",
+    ]
+
+    private enum CodingKeys: String, CodingKey {
+        case launchAtLogin
+        case pasteAfterSelection
+        case deleteAfterPaste
+        case deleteOnSelect
+        case showNumbers
+        case startNumbersAtZero
+        case historyLimit
+        case menuTitleCharacterLimit
+        case formatPlainText
+        case formatRTF
+        case formatRTFD
+        case formatFileURL
+        case formatURL
+        case formatPDF
+        case formatImage
+        case excludedBundleIDs
+        case mixedSnippetPasteBundleIDs
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        pasteAfterSelection = try container.decodeIfPresent(Bool.self, forKey: .pasteAfterSelection) ?? true
+        deleteAfterPaste = try container.decodeIfPresent(Bool.self, forKey: .deleteAfterPaste) ?? false
+        deleteOnSelect = try container.decodeIfPresent(Bool.self, forKey: .deleteOnSelect) ?? false
+        showNumbers = try container.decodeIfPresent(Bool.self, forKey: .showNumbers) ?? true
+        startNumbersAtZero = try container.decodeIfPresent(Bool.self, forKey: .startNumbersAtZero) ?? false
+        historyLimit = try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? 5
+        menuTitleCharacterLimit = try container.decodeIfPresent(Int.self, forKey: .menuTitleCharacterLimit) ?? 30
+        formatPlainText = try container.decodeIfPresent(Bool.self, forKey: .formatPlainText) ?? true
+        formatRTF = try container.decodeIfPresent(Bool.self, forKey: .formatRTF) ?? true
+        formatRTFD = try container.decodeIfPresent(Bool.self, forKey: .formatRTFD) ?? true
+        formatFileURL = try container.decodeIfPresent(Bool.self, forKey: .formatFileURL) ?? true
+        formatURL = try container.decodeIfPresent(Bool.self, forKey: .formatURL) ?? true
+        formatPDF = try container.decodeIfPresent(Bool.self, forKey: .formatPDF) ?? false
+        formatImage = try container.decodeIfPresent(Bool.self, forKey: .formatImage) ?? false
+        excludedBundleIDs = try container.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? []
+        mixedSnippetPasteBundleIDs = Self.normalizedMixedSnippetPasteBundleIDs(try container.decodeIfPresent(
+            [String].self,
+            forKey: .mixedSnippetPasteBundleIDs
+        ))
+    }
+
+    private static func normalizedMixedSnippetPasteBundleIDs(_ bundleIDs: [String]?) -> [String] {
+        guard let bundleIDs else {
+            return defaultMixedSnippetPasteBundleIDs
+        }
+
+        if Set(bundleIDs) == Set(legacyDefaultMixedSnippetPasteBundleIDs),
+           bundleIDs.count == legacyDefaultMixedSnippetPasteBundleIDs.count {
+            return defaultMixedSnippetPasteBundleIDs
+        }
+
+        return bundleIDs
+    }
 }
 
 @Model
@@ -120,12 +190,40 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    func addMixedSnippetPasteBundleID(_ bundleID: String) {
+        let trimmed = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return
+        }
+
+        update { preferences in
+            if !preferences.mixedSnippetPasteBundleIDs.contains(trimmed) {
+                preferences.mixedSnippetPasteBundleIDs.append(trimmed)
+                preferences.mixedSnippetPasteBundleIDs.sort()
+            }
+        }
+    }
+
+    func removeMixedSnippetPasteBundleID(_ bundleID: String) {
+        update { preferences in
+            preferences.mixedSnippetPasteBundleIDs.removeAll { $0 == bundleID }
+        }
+    }
+
     func shouldCapture(bundleID: String?) -> Bool {
         guard let bundleID else {
             return true
         }
 
         return !state.excludedBundleIDs.contains(bundleID)
+    }
+
+    func shouldUseTwoStepMixedSnippetPaste(bundleID: String?) -> Bool {
+        guard let bundleID else {
+            return false
+        }
+
+        return state.mixedSnippetPasteBundleIDs.contains(bundleID)
     }
 
     private func clampedHistoryLimit(_ value: Int) -> Int {
