@@ -14,6 +14,22 @@ Last updated: 2026-05-14
 
 ## Problems Encountered And Fixes
 
+### Snippet attachments lost file access after restart
+
+Snippet attachments were persisted as external `file://` URL strings. After a Mac restart, SwiftClip could still show the attachment metadata, but the pasteboard write could fail to provide usable file access for the receiving app.
+
+Solution:
+- Copy newly selected or dropped snippet attachments into `Application Support/SwiftClip/SnippetAttachments`.
+- Paste snippets using the app-owned copy URL, not the original external file URL.
+- Show a warning for selected files that are 50 MB or larger, then continue copying.
+- Delete managed attachment copies when an attachment row, snippet, or snippet folder is deleted.
+- Leave legacy external attachment URLs readable and never delete files outside the managed attachment directory.
+
+Verification:
+- `xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test` passed on 2026-05-16.
+- `./script/build_and_run.sh --verify` built and launched the Debug app on 2026-05-16.
+- A final build with the updated string catalog passed on 2026-05-16.
+
 ### Mixed text-and-attachment snippet pastes split in chat fields
 
 Mixed snippets with text and an image attachment were pasted by some receivers as image-only, while text-only apps pasted only the text. This matched receivers choosing one representation or route from a mixed pasteboard payload rather than treating it as a complete snippet.
