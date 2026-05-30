@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 ## Implementation Context
 
@@ -11,6 +11,7 @@ Last updated: 2026-05-30
 - The app is configured as a menu-bar accessory app with `LSUIElement = true`.
 - The app icon is `SwiftClip/Resources/AppIcon.icns`, referenced from `Resources/Info.plist` as `CFBundleIconFile = AppIcon`.
 - The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
+- The Extensions preferences tab now exposes only the plain-text paste trigger. Delete-on-select and delete-after-paste preferences and shortcut names were removed, and selecting a history item no longer removes it through those settings.
 
 ## Problems Encountered And Fixes
 

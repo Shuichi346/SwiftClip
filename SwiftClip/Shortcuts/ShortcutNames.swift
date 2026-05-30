@@ -7,8 +7,6 @@ extension KeyboardShortcuts.Name {
     static let snippetEditor = Self("snippetEditor")
     static let preferences = Self("preferences")
     static let plainTextPaste = Self("plainTextPaste")
-    static let deleteOnSelect = Self("deleteOnSelect")
-    static let deleteAfterPaste = Self("deleteAfterPaste")
 
     static func snippet(_ id: UUID) -> Self {
         Self("snippet.\(id.uuidString)")

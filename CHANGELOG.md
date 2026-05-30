@@ -19,3 +19,4 @@
 - Changed app-list preference rows to show resolved `.app` names while keeping bundle IDs as the stored value.
 - Fixed history item pasting so failed pasteboard writes, including invalid file URL history entries, do not trigger auto-paste side effects or clear the existing clipboard.
 - Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.
+- Removed the Extensions preferences for delete-on-select and delete-after-paste, leaving only the plain-text paste trigger.

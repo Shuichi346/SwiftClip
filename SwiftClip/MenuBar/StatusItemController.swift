@@ -50,10 +50,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
 
         environment.pasteEngine.paste(item: item)
-
-        if environment.preferences.state.deleteOnSelect || environment.preferences.state.deleteAfterPaste {
-            environment.history.remove(id: id)
-        }
     }
 
     @objc func selectSnippetItem(_ sender: NSMenuItem) {

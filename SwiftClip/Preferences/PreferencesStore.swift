@@ -7,8 +7,6 @@ import SwiftData
 struct PreferencesState: Codable, Equatable, Sendable {
     var launchAtLogin = false
     var pasteAfterSelection = true
-    var deleteAfterPaste = false
-    var deleteOnSelect = false
     var showNumbers = true
     var startNumbersAtZero = false
     var historyLimit = 5
@@ -39,8 +37,6 @@ struct PreferencesState: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
         case pasteAfterSelection
-        case deleteAfterPaste
-        case deleteOnSelect
         case showNumbers
         case startNumbersAtZero
         case historyLimit
@@ -62,8 +58,6 @@ struct PreferencesState: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         pasteAfterSelection = try container.decodeIfPresent(Bool.self, forKey: .pasteAfterSelection) ?? true
-        deleteAfterPaste = try container.decodeIfPresent(Bool.self, forKey: .deleteAfterPaste) ?? false
-        deleteOnSelect = try container.decodeIfPresent(Bool.self, forKey: .deleteOnSelect) ?? false
         showNumbers = try container.decodeIfPresent(Bool.self, forKey: .showNumbers) ?? true
         startNumbersAtZero = try container.decodeIfPresent(Bool.self, forKey: .startNumbersAtZero) ?? false
         historyLimit = try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? 5

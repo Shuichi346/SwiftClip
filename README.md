@@ -120,7 +120,7 @@ SwiftClip preferences are stored locally as JSON and are available from the menu
 - **Formats**: which pasteboard formats SwiftClip captures for history.
 - **Apps**: applications excluded from clipboard capture, plus **Mixed Snippet Paste Apps** for apps that should receive mixed snippets as two paste operations: text first, then attachments.
 - **Shortcuts**: global shortcuts for the main popup, snippet editor, preferences, and clear history actions.
-- **Extensions**: modifier-triggered history-item behaviors such as plain-text paste, delete on select, and delete after paste. Snippets are not affected by these delete actions.
+- **Extensions**: modifier-triggered plain-text paste behavior.
 
 The app lists store bundle identifiers internally, but the preferences UI resolves installed apps and displays names such as `Firefox.app` for clarity. If an app cannot be resolved, SwiftClip falls back to showing the bundle ID.
 
