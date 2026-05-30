@@ -17,3 +17,5 @@
 - Kept Mixed Snippet Paste Apps empty by default so no app receives the two-step workaround until the user adds it.
 - Changed app-list preferences to add applications through a standard app picker instead of requiring manual bundle ID entry.
 - Changed app-list preference rows to show resolved `.app` names while keeping bundle IDs as the stored value.
+- Fixed history item pasting so failed pasteboard writes, including invalid file URL history entries, do not trigger auto-paste side effects or clear the existing clipboard.
+- Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.

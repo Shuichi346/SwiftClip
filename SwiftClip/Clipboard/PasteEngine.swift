@@ -54,30 +54,26 @@ final class PasteEngine {
     }
 
     private func write(item: ClipboardItem, asPlainText: Bool) async -> Bool {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-
         if asPlainText, let text = item.textValue {
-            pasteboard.setString(text, forType: .string)
-            onPasteboardWrite?()
-            return true
+            return writeText(text, forType: .string)
         }
 
         if let text = item.textValue {
             let type = NSPasteboard.PasteboardType(item.pasteboardTypeIdentifier ?? item.kind.fallbackPasteboardType.rawValue)
-            pasteboard.setString(text, forType: type)
-            if type != .string {
-                pasteboard.setString(text, forType: .string)
-            }
-            onPasteboardWrite?()
-            return true
+            return writeText(text, forType: type)
         }
 
         if !item.fileURLs.isEmpty {
-            let urls = item.fileURLs.compactMap(URL.init(string:))
-            pasteboard.writeObjects(urls as [NSURL])
-            onPasteboardWrite?()
-            return true
+            let urls = item.fileURLs
+                .compactMap(URL.init(string:))
+                .filter(\.isFileURL)
+            guard !urls.isEmpty else {
+                return false
+            }
+
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            return completePasteboardWrite(pasteboard.writeObjects(urls as [NSURL]))
         }
 
         guard let blobFilename = item.blobFilename else {
@@ -87,13 +83,32 @@ final class PasteEngine {
         do {
             let data = try await blobStore.read(filename: blobFilename)
             let type = NSPasteboard.PasteboardType(item.pasteboardTypeIdentifier ?? item.kind.fallbackPasteboardType.rawValue)
-            pasteboard.setData(data, forType: type)
-            onPasteboardWrite?()
-            return true
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            return completePasteboardWrite(pasteboard.setData(data, forType: type))
         } catch {
             AppLog.clipboard.error("Could not paste history item: \(error.localizedDescription, privacy: .public)")
             return false
         }
+    }
+
+    private func writeText(_ text: String, forType type: NSPasteboard.PasteboardType) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if type == .string {
+            return completePasteboardWrite(pasteboard.setString(text, forType: .string))
+        } else {
+            let wrotePrimaryType = pasteboard.setString(text, forType: type)
+            let wrotePlainText = pasteboard.setString(text, forType: .string)
+            return completePasteboardWrite(wrotePrimaryType || wrotePlainText)
+        }
+    }
+
+    private func completePasteboardWrite(_ didWrite: Bool) -> Bool {
+        if didWrite {
+            onPasteboardWrite?()
+        }
+        return didWrite
     }
 
     private func pasteboardObjects(for snippet: SnippetLeaf) -> [NSPasteboardWriting] {

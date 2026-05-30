@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-05-14
+Last updated: 2026-05-30
 
 ## Implementation Context
 
@@ -13,6 +13,43 @@ Last updated: 2026-05-14
 - The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
 
 ## Problems Encountered And Fixes
+
+### Detached JSON persistence could write stale snapshots last
+
+History, snippet, and preferences stores previously wrote JSON snapshots from independent detached tasks. Rapid updates could allow an older snapshot to finish after a newer one, leaving stale persisted state on disk.
+
+Solution:
+- Added `JSONPersistenceQueue`, a serial utility queue for ordered JSON snapshot writes.
+- Routed `HistoryStore`, `SnippetStore`, and `PreferencesStore` persistence through that queue while keeping writes off the main actor.
+- Added `JSONPersistenceQueueTests.testWritesSnapshotsInEnqueueOrder()` to verify final disk state follows enqueue order.
+
+### History paste failures cleared the pasteboard
+
+History item paste handling cleared `NSPasteboard.general` before proving the new item could be written. Invalid file URL history entries or missing blob data could erase the existing clipboard and still drive paste-related side effects.
+
+Solution:
+- Validate file URL history payloads before clearing the pasteboard.
+- Read blob data before clearing the pasteboard.
+- Check `NSPasteboard` write return values for text, files, and blob data before calling `onPasteboardWrite`.
+- Added `SnippetAttachmentTests.testPasteHistoryItemIgnoresInvalidFileURLs()` to assert failed file URL writes leave the existing pasteboard unchanged.
+
+### Snippet load did not canonicalize nested sort indexes
+
+Snippet folders were sorted on load, but nested snippets kept the raw persisted array order even when `sortIndex` values disagreed.
+
+Solution:
+- Normalize loaded folders and snippets by stable `sortIndex` order.
+- Keep `SnippetStore.allFolders()` as a direct snapshot read after load/mutation normalization instead of re-sorting every call.
+- Added `SnippetStoreReorderingTests.testLoadNormalizesFolderAndSnippetSortIndexes()`.
+
+### Xcode test action reported no results
+
+The Xcode MCP `RunAllTests` action listed all tests as `No result` in this session, despite the project building. The command-line test run executed normally.
+
+Solution/status:
+- Used the repo-approved `xcodebuild ... test` command for actual test execution.
+- `xcodebuild` reported `** TEST SUCCEEDED **` for 22 tests.
+- During the first refactor build, `SnippetStore.normalized` briefly missed an explicit `return` in a multi-statement closure; the compile error was fixed before final verification.
 
 ### Mixed text-and-attachment snippet pastes split in chat fields
 

@@ -2,7 +2,6 @@ import AppKit
 import XCTest
 @testable import SwiftClip
 
-@MainActor
 final class SnippetAttachmentTests: XCTestCase {
     private var temporaryDirectory: URL!
 
@@ -20,6 +19,7 @@ final class SnippetAttachmentTests: XCTestCase {
         temporaryDirectory = nil
     }
 
+    @MainActor
     func testLoadTreatsMissingAttachmentURLsAsEmpty() throws {
         let snippetsURL = temporaryDirectory.appendingPathComponent("Snippets.json", isDirectory: false)
         let json = """
@@ -52,6 +52,7 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(snippet.attachmentURLs, [])
     }
 
+    @MainActor
     func testAddAttachmentURLsKeepsFileURLsAndRemovesDuplicates() throws {
         let store = makeStore()
         let folderID = store.addFolder(title: "Folder")
@@ -69,6 +70,7 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(snippet.attachmentURLs, [fileURL.absoluteString])
     }
 
+    @MainActor
     func testPasteSnippetWritesTextAndAttachmentsAsSeparatePasteboardItems() throws {
         let fileURL = temporaryDirectory.appendingPathComponent("upload.txt", isDirectory: false)
         try Data("file".utf8).write(to: fileURL, options: .atomic)
@@ -104,6 +106,41 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(items[1].string(forType: .fileURL), fileURL.absoluteString)
     }
 
+    @MainActor
+    func testPasteHistoryItemIgnoresInvalidFileURLs() async throws {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("existing clipboard", forType: .string)
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+        }
+        let engine = PasteEngine(
+            preferences: preferences,
+            blobStore: BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true))
+        )
+        var writeCount = 0
+        engine.onPasteboardWrite = {
+            writeCount += 1
+        }
+
+        engine.paste(
+            item: ClipboardItem(
+                kind: .fileURL,
+                title: "Invalid file",
+                fileURLs: ["https://example.com/not-a-file"],
+                byteCount: 30,
+                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.fileURL.rawValue
+            )
+        )
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(writeCount, 0)
+        XCTAssertEqual(pasteboard.string(forType: .string), "existing clipboard")
+    }
+
+    @MainActor
     private func makeStore() -> SnippetStore {
         SnippetStore(fileURL: temporaryDirectory.appendingPathComponent("Snippets.json"))
     }

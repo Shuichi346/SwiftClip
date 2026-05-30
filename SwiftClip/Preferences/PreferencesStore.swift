@@ -112,6 +112,7 @@ final class PreferencesStore: ObservableObject {
     @Published private(set) var state = PreferencesState()
 
     private let fileURL: URL
+    private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.preferences.persistence")
 
     init(fileURL: URL = FileLocations.preferencesURL) {
         self.fileURL = fileURL
@@ -231,19 +232,8 @@ final class PreferencesStore: ObservableObject {
     }
 
     private func persist() {
-        let state = state
-        let fileURL = fileURL
-
-        Task.detached(priority: .utility) {
-            do {
-                try FileLocations.ensureBaseDirectories()
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let data = try encoder.encode(state)
-                try data.write(to: fileURL, options: .atomic)
-            } catch {
-                AppLog.preferences.error("Could not persist preferences: \(error.localizedDescription, privacy: .public)")
-            }
+        persistenceQueue.write(state, to: fileURL) { error in
+            AppLog.preferences.error("Could not persist preferences: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

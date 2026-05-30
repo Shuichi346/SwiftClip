@@ -6,6 +6,7 @@ final class SnippetStore: ObservableObject {
     @Published private(set) var folders: [SnippetSummary] = []
 
     private let fileURL: URL
+    private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.snippets.persistence")
 
     init(fileURL: URL = FileLocations.snippetsIndexURL) {
         self.fileURL = fileURL
@@ -20,14 +21,15 @@ final class SnippetStore: ObservableObject {
             }
 
             let data = try Data(contentsOf: fileURL)
-            folders = try JSONDecoder().decode([SnippetSummary].self, from: data).sorted { $0.sortIndex < $1.sortIndex }
+            let decoded = try JSONDecoder().decode([SnippetSummary].self, from: data)
+            folders = normalized(orderedBySortIndex(decoded, keyPath: \.sortIndex), orderSnippetsBySortIndex: true)
         } catch {
             AppLog.snippets.error("Could not load snippets: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     func allFolders() -> [SnippetSummary] {
-        folders.sorted { $0.sortIndex < $1.sortIndex }
+        folders
     }
 
     func enabledFolders() -> [SnippetSummary] {
@@ -35,7 +37,6 @@ final class SnippetStore: ObservableObject {
             var copy = folder
             copy.snippets = folder.snippets
                 .filter(\.isEnabled)
-                .sorted { $0.sortIndex < $1.sortIndex }
             return copy
         }
     }
@@ -266,14 +267,21 @@ final class SnippetStore: ObservableObject {
         try data.write(to: backupURL, options: .atomic)
     }
 
-    private func normalized(_ importedFolders: [SnippetSummary]) -> [SnippetSummary] {
+    private func normalized(
+        _ importedFolders: [SnippetSummary],
+        orderSnippetsBySortIndex: Bool = false
+    ) -> [SnippetSummary] {
         importedFolders.enumerated().map { folderOffset, folder in
-            SnippetSummary(
+            let snippets = orderSnippetsBySortIndex
+                ? orderedBySortIndex(folder.snippets, keyPath: \.sortIndex)
+                : folder.snippets
+
+            return SnippetSummary(
                 id: folder.id,
                 title: folder.title,
                 sortIndex: folderOffset,
                 isEnabled: folder.isEnabled,
-                snippets: folder.snippets.enumerated().map { snippetOffset, snippet in
+                snippets: snippets.enumerated().map { snippetOffset, snippet in
                     SnippetLeaf(
                         id: snippet.id,
                         title: snippet.title,
@@ -334,20 +342,25 @@ final class SnippetStore: ObservableObject {
         }
     }
 
-    private func persist() {
-        let folders = folders
-        let fileURL = fileURL
-
-        Task.detached(priority: .utility) {
-            do {
-                try FileLocations.ensureBaseDirectories()
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let data = try encoder.encode(folders)
-                try data.write(to: fileURL, options: .atomic)
-            } catch {
-                AppLog.snippets.error("Could not persist snippets: \(error.localizedDescription, privacy: .public)")
+    private func orderedBySortIndex<Value>(
+        _ values: [Value],
+        keyPath: KeyPath<Value, Int>
+    ) -> [Value] {
+        values.enumerated()
+            .sorted { first, second in
+                let firstSortIndex = first.element[keyPath: keyPath]
+                let secondSortIndex = second.element[keyPath: keyPath]
+                if firstSortIndex == secondSortIndex {
+                    return first.offset < second.offset
+                }
+                return firstSortIndex < secondSortIndex
             }
+            .map(\.element)
+    }
+
+    private func persist() {
+        persistenceQueue.write(folders, to: fileURL) { error in
+            AppLog.snippets.error("Could not persist snippets: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

@@ -8,6 +8,7 @@ final class HistoryStore: ObservableObject {
     private let blobStore: BlobStore
     private let preferences: PreferencesStore
     private let fileURL: URL
+    private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.history.persistence")
 
     init(
         blobStore: BlobStore,
@@ -128,19 +129,8 @@ final class HistoryStore: ObservableObject {
     }
 
     private func persistSnapshot(_ snapshot: [ClipboardItem]) {
-        let fileURL = fileURL
-
-        Task.detached(priority: .utility) {
-            do {
-                try FileLocations.ensureBaseDirectories()
-                let encoder = JSONEncoder()
-                encoder.dateEncodingStrategy = .iso8601
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let data = try encoder.encode(snapshot)
-                try data.write(to: fileURL, options: .atomic)
-            } catch {
-                AppLog.history.error("Could not persist history: \(error.localizedDescription, privacy: .public)")
-            }
+        persistenceQueue.write(snapshot, to: fileURL, encodeDatesAsISO8601: true) { error in
+            AppLog.history.error("Could not persist history: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
