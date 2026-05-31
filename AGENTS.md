@@ -61,6 +61,7 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - The `Main` global shortcut must not call the status-item click path. It must show the standalone popup next to the current cursor.
 - Build standalone shortcut popups through `StandalonePopupMenuBuilder` and present them with `NSMenu.popUp(positioning:at:in:)` using `NSEvent.mouseLocation`.
 - Preserve the standalone popup structure shown in the user reference: History header, history range submenus, Snippets header, snippet folder submenus, then action items.
+- Keep keyboard equivalents out of the standalone popup unless intentionally accepting AppKit's reserved shortcut-column width. The menu-bar menu may still show shortcuts such as `⌘Q`.
 
 ## Snippet Editing
 

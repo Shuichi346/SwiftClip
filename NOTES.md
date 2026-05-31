@@ -15,6 +15,14 @@ Last updated: 2026-05-31
 
 ## Problems Encountered And Fixes
 
+### Standalone popup reserved shortcut-column width
+
+The standalone History/Snippets popup inherited the `SwiftClipを終了` `⌘Q` key equivalent from the menu-bar action section. AppKit reserved a keyboard-shortcut column across the whole `NSMenu`, which left extra blank space between snippet folder titles and submenu arrows.
+
+Solution:
+- Added a `showsQuitShortcut` option to `ActionMenuSection.add`.
+- The menu-bar menu keeps `⌘Q`; the standalone popup calls the action section with `showsQuitShortcut: false`.
+
 ### Detached JSON persistence could write stale snapshots last
 
 History, snippet, and preferences stores previously wrote JSON snapshots from independent detached tasks. Rapid updates could allow an older snapshot to finish after a newer one, leaving stale persisted state on disk.

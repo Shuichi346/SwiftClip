@@ -21,3 +21,4 @@
 - Fixed the Paste Permission window so its Open Settings button does not also trigger Apple's native Accessibility prompt.
 - Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.
 - Removed the Extensions preferences for delete-on-select and delete-after-paste, leaving only the plain-text paste trigger.
+- Removed the Quit keyboard shortcut display from the standalone shortcut popup to reduce the reserved blank space before submenu arrows.
