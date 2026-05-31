@@ -32,6 +32,7 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - Preserve Swift 6 strict concurrency settings.
 - Keep AppKit, NSPasteboard, NSStatusItem, NSWindow, and Accessibility API usage on the main actor unless there is a proven safe boundary.
 - For Accessibility trust prompting, use the string key `"AXTrustedCheckOptionPrompt"` in the options dictionary. Do not use `kAXTrustedCheckOptionPrompt` directly; it previously caused Swift 6 diagnostics.
+- Keep SwiftClip's permission window and Apple's native Accessibility prompt separate. The Paste Permission window's Open Settings action should open System Settings directly and must not call `PermissionsProbe.isAccessibilityTrusted(prompt: true)`.
 - Do not import `FoundationXML` for the Clipy XML codec. Use `Foundation.XMLParser` APIs from `Foundation`.
 
 ## Xcode Project Hygiene

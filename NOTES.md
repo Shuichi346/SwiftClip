@@ -297,6 +297,7 @@ Release `Info.plist` was checked with `plutil` and included:
 
 ## Remaining Manual Checks
 
+- Reset SwiftClip Accessibility permission and confirm the Paste Permission window's Open Settings button opens System Settings without also showing Apple's native Accessibility Access prompt.
 - Approve Accessibility permission in System Settings and verify automatic paste injection into another app.
 - Exercise the menu-bar UI visually in both English and Japanese system languages.
 - Copy large image/PDF payloads manually to confirm the 50 MB payload cap behavior.
@@ -328,3 +329,17 @@ Manual check still needed:
 
 Follow-up:
 - SwiftUI `TextEditor.onDrop` did not reliably prevent dropped files from being inserted as absolute path text. `SnippetDetailPane` now uses a narrow `NSViewRepresentable` text editor bridge so `NSTextView` intercepts file URL drags and stores them as snippet attachments before the text system inserts a path.
+
+### Accessibility settings prompt duplication
+
+The Paste Permission window's Open Settings button called `AXIsProcessTrustedWithOptions` with `"AXTrustedCheckOptionPrompt": true` and then opened the Accessibility privacy pane directly. That produced both Apple's native Accessibility Access prompt and SwiftClip's own settings route.
+
+Solution:
+- Keep launch, refresh, and paste permission checks non-prompting.
+- Move the direct Accessibility settings URL into `PermissionsProbe.openAccessibilitySettings()`.
+- Make the Paste Permission window's Open Settings button call only the direct settings opener.
+
+Verification:
+- `rg -n "isAccessibilityTrusted\\(prompt: true\\)|AXTrustedCheckOptionPrompt" SwiftClip` now finds only the helper's `"AXTrustedCheckOptionPrompt"` key and no `prompt: true` call sites.
+- `xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build` passed on 2026-05-31.
+- The known non-fatal AppIntents metadata warning still appears.
