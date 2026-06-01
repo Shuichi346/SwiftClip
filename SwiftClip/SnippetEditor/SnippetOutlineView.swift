@@ -176,10 +176,11 @@ extension SnippetOutlineView {
             }
 
             let cell = reusableCell(in: outlineView)
-            cell.imageView?.image = image(for: node)
-            cell.imageView?.contentTintColor = isEnabled(node) ? .secondaryLabelColor : .tertiaryLabelColor
-            cell.textField?.stringValue = title(for: node)
-            cell.textField?.textColor = isEnabled(node) ? .labelColor : .secondaryLabelColor
+            cell.configure(
+                title: title(for: node),
+                systemImageName: systemImageName(for: node),
+                isEnabled: isEnabled(node)
+            )
             return cell
         }
 
@@ -562,52 +563,23 @@ extension SnippetOutlineView {
             }
         }
 
-        private func reusableCell(in outlineView: NSOutlineView) -> NSTableCellView {
+        private func reusableCell(in outlineView: NSOutlineView) -> SnippetOutlineCellView {
             let identifier = NSUserInterfaceItemIdentifier.snippetOutlineCell
-            if let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
+            if let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? SnippetOutlineCellView {
                 return cell
             }
 
-            let cell = NSTableCellView()
+            let cell = SnippetOutlineCellView()
             cell.identifier = identifier
-
-            let imageView = NSImageView()
-            imageView.translatesAutoresizingMaskIntoConstraints = false
-            imageView.imageScaling = .scaleProportionallyDown
-            imageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-
-            let textField = NSTextField(labelWithString: "")
-            textField.translatesAutoresizingMaskIntoConstraints = false
-            textField.lineBreakMode = .byTruncatingTail
-            textField.maximumNumberOfLines = 1
-            textField.font = .systemFont(ofSize: NSFont.systemFontSize)
-            textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-            cell.addSubview(imageView)
-            cell.addSubview(textField)
-            cell.imageView = imageView
-            cell.textField = textField
-
-            NSLayoutConstraint.activate([
-                imageView.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
-                imageView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                imageView.widthAnchor.constraint(equalToConstant: 16),
-                imageView.heightAnchor.constraint(equalToConstant: 16),
-
-                textField.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 6),
-                textField.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -4),
-                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
-            ])
-
             return cell
         }
 
-        private func image(for node: SnippetOutlineNode) -> NSImage? {
+        private func systemImageName(for node: SnippetOutlineNode) -> String {
             switch node.key {
             case .folder:
-                return NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+                return "folder"
             case .snippet:
-                return NSImage(systemSymbolName: "text.alignleft", accessibilityDescription: nil)
+                return "text.alignleft"
             }
         }
 
@@ -727,6 +699,63 @@ extension SnippetOutlineView {
             }
 
             return nil
+        }
+    }
+}
+
+private final class SnippetOutlineCellView: NSTableCellView {
+    private let hostingView = NSHostingView(
+        rootView: SnippetOutlineRowView(title: "", systemImageName: "folder", isEnabled: true)
+    )
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupHostingView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupHostingView()
+    }
+
+    func configure(title: String, systemImageName: String, isEnabled: Bool) {
+        hostingView.rootView = SnippetOutlineRowView(
+            title: title,
+            systemImageName: systemImageName,
+            isEnabled: isEnabled
+        )
+    }
+
+    private func setupHostingView() {
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        hostingView.setContentHuggingPriority(.required, for: .horizontal)
+        addSubview(hostingView)
+
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            hostingView.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+}
+
+private struct SnippetOutlineRowView: View {
+    let title: String
+    let systemImageName: String
+    let isEnabled: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImageName)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(isEnabled ? .secondary : .tertiary)
+                .frame(width: 16, height: 16)
+
+            Text(title)
+                .font(.system(size: NSFont.systemFontSize))
+                .foregroundStyle(isEnabled ? .primary : .secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
     }
 }

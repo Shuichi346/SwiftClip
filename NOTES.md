@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-05-31
+Last updated: 2026-06-01
 
 ## Implementation Context
 
@@ -14,6 +14,16 @@ Last updated: 2026-05-31
 - The Extensions preferences tab now exposes only the plain-text paste trigger. Delete-on-select and delete-after-paste preferences and shortcut names were removed, and selecting a history item no longer removes it through those settings.
 
 ## Problems Encountered And Fixes
+
+### Snippet editor sidebar auto-collapsed when dragged narrow
+
+The snippet editor used `NavigationSplitView` with a sidebar width minimum, but the backing macOS split view could still switch the sidebar column into a hidden collapsed state when the divider crossed AppKit's collapse threshold.
+
+Solution:
+- Replaced the editor root `NavigationSplitView` with `HSplitView`, which has no sidebar auto-collapse feature.
+- Kept the current initial sidebar width as `idealWidth = 200`, with `minWidth = 180` and `maxWidth = 220`.
+- Hosted outline row labels in SwiftUI and applied `.lineLimit(1)` plus `.fixedSize(horizontal: true, vertical: false)` to folder and snippet title text.
+- Verified with an Xcode MCP build, command-line XCTest, and `./script/build_and_run.sh --verify`.
 
 ### Standalone popup reserved shortcut-column width
 
