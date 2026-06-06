@@ -24,3 +24,4 @@
 - Removed the Extensions preferences for delete-on-select and delete-after-paste, leaving only the plain-text paste trigger.
 - Removed the Quit keyboard shortcut display from the standalone shortcut popup to reduce the reserved blank space before submenu arrows.
 - Fixed the snippet editor sidebar by replacing `NavigationSplitView` with `HSplitView`, keeping a 280-point initial width with 260-point minimum and 360-point maximum bounds.
+- Fixed a post-merge build failure in `SnippetStore` by preserving both ordered JSON persistence and managed snippet attachment cleanup.

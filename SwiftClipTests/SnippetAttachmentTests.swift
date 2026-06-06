@@ -71,6 +71,33 @@ final class SnippetAttachmentTests: XCTestCase {
     }
 
     @MainActor
+    func testRemovingAttachmentDeletesManagedFileOnlyAfterLastReference() throws {
+        let store = makeStore()
+        let folderID = store.addFolder(title: "Folder")
+        let firstSnippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "First"))
+        let secondSnippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "Second"))
+        let sourceURL = temporaryDirectory.appendingPathComponent("image.png", isDirectory: false)
+        try Data("png".utf8).write(to: sourceURL, options: .atomic)
+
+        let managedAttachmentURLs = try store.addAttachmentFiles(
+            [sourceURL],
+            folderID: folderID,
+            snippetID: firstSnippetID
+        )
+        let managedAttachmentURL = try XCTUnwrap(managedAttachmentURLs.first)
+        let managedFileURL = try XCTUnwrap(URL(string: managedAttachmentURL))
+        store.addAttachmentURLs([managedAttachmentURL], folderID: folderID, snippetID: secondSnippetID)
+
+        store.removeAttachmentURL(at: 0, folderID: folderID, snippetID: firstSnippetID)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: managedFileURL.path))
+
+        store.removeAttachmentURL(at: 0, folderID: folderID, snippetID: secondSnippetID)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: managedFileURL.path))
+    }
+
+    @MainActor
     func testPasteSnippetWritesTextAndAttachmentsAsSeparatePasteboardItems() throws {
         let fileURL = temporaryDirectory.appendingPathComponent("upload.txt", isDirectory: false)
         try Data("file".utf8).write(to: fileURL, options: .atomic)

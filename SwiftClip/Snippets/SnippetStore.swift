@@ -7,6 +7,7 @@ final class SnippetStore: ObservableObject {
 
     private let fileURL: URL
     private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.snippets.persistence")
+    private let attachmentStore: SnippetAttachmentStore
 
     init(
         fileURL: URL = FileLocations.snippetsIndexURL,
@@ -392,6 +393,16 @@ final class SnippetStore: ObservableObject {
                 return firstSortIndex < secondSortIndex
             }
             .map(\.element)
+    }
+
+    private func deleteUnreferencedManagedAttachments(_ attachmentURLs: [String]) {
+        let referencedAttachmentURLs = Set(folders.flatMap { folder in
+            folder.snippets.flatMap(\.attachmentURLs)
+        })
+
+        for attachmentURL in attachmentURLs where !referencedAttachmentURLs.contains(attachmentURL) {
+            attachmentStore.deleteIfManaged(attachmentURL)
+        }
     }
 
     private func persist() {

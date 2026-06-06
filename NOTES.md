@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-06-01
+Last updated: 2026-06-06
 
 ## Implementation Context
 
@@ -14,6 +14,15 @@ Last updated: 2026-06-01
 - The Extensions preferences tab now exposes only the plain-text paste trigger. Delete-on-select and delete-after-paste preferences and shortcut names were removed, and selecting a history item no longer removes it through those settings.
 
 ## Problems Encountered And Fixes
+
+### Merge conflict resolution dropped snippet attachment store state
+
+After a GitHub branch merge conflict, `SnippetStore` retained calls to managed snippet attachment APIs but lost the stored `SnippetAttachmentStore` property and the helper that deletes only unreferenced managed attachment files. The build failed with `cannot find 'attachmentStore' in scope` and `cannot find 'deleteUnreferencedManagedAttachments' in scope`.
+
+Solution:
+- Restored `SnippetStore` so ordered `JSONPersistenceQueue` writes and managed snippet attachment cleanup coexist.
+- Added a regression test that removes a shared managed attachment from two snippets and verifies the file is deleted only after the last reference is removed.
+- Verified with the repo-approved Debug build and full XCTest command on 2026-06-06.
 
 ### Snippet editor sidebar auto-collapsed when dragged narrow
 
