@@ -20,7 +20,7 @@ These assumptions were derived from the user's answers and from research conduct
 7. **Deletion guarantee**: When a history item is removed (manual clear, "delete after paste", overflow eviction, or app termination cleanup), both its JSON index entry **and** its blob file under `Blobs/` are deleted in the same transaction. An orphan-blob sweep runs at startup and on every clear.
 8. **History caps**: Max user-configurable limit = **50**, default = **5**. Hard ceiling for any single payload = **50 MB**; oversized clipboard contents are silently skipped.
 9. **Default formats**: Plain text, RTF, RTFD, file name, and URL are enabled by default. **PDF and image are disabled by default** (user must opt in).
-10. **Screenshot beta feature is removed** entirely. The renamed "拡張機能 / Extensions" tab keeps only the three modifier-triggered actions: PlainText paste, delete on select, delete after paste.
+10. **Screenshot beta feature is removed** entirely. The renamed "拡張機能 / Extensions" tab keeps only the three modifier-triggered history-item actions: PlainText paste, delete on select, delete after paste. Snippets are intentionally excluded from the delete actions.
 11. **Extension-tab modifier triggers**: Each action stores an arbitrary user-defined key combination (modifier flags + key code) recorded with `KeyboardShortcuts`. Default = unset (off). When unset, the action is inactive.
 12. **Frontmost-app exclusion**: Resolved at the moment `NSPasteboard.changeCount` ticks, using `NSWorkspace.shared.frontmostApplication?.bundleIdentifier`. If the bundle ID matches the exclusion list, the change is dropped.
 13. **Localization**: English (base) and Japanese, managed via a single `Localizable.xcstrings` catalog.
@@ -687,9 +687,9 @@ Codex executes every step sequentially. The agent labels are intent markers.
   - Header note: `String(localized: "prefs.extensions.note")` = "Extensions may not preserve their settings across upgrades."
   - Row layout: `[Toggle][label][spacer][Recorder][clear-X button]`. The recorder is disabled when the toggle is off.
   - Three rows:
-    1. "PlainTextとしてペースト / Paste as plain text" — when its shortcut is held during the menu selection, `PasteEngine.paste(_:asPlainText:true)`.
-    2. "履歴を削除する / Delete on select" — when held during menu selection, the item is removed from history without pasting.
-    3. "ペーストした後に履歴を削除する / Delete after paste" — paste normally, then remove the entry.
+    1. "PlainTextとしてペースト / Paste as plain text" — when its shortcut is held during history-item menu selection, `PasteEngine.paste(_:asPlainText:true)`.
+    2. "履歴を削除する / Delete on select" — when held during history-item menu selection, the item is removed from history without pasting.
+    3. "ペーストした後に履歴を削除する / Delete after paste" — paste the history item normally, then remove the entry. Snippet menu selections are unaffected.
   - Implementation note: Modifier-held detection uses `NSEvent.modifierFlags` at the moment the menu item is invoked. The recorded `KeyboardShortcuts.Shortcut` is decomposed into `(modifierFlags, keyCode)`; when only modifiers are recorded (no key), the keyCode is `nil` and we match modifiers only. Allow modifier-only recording by accepting `KeyboardShortcuts.Recorder` shortcuts where `.key == nil`.
 - **Dependencies**: Step 5.7.
 - **Verification**: Record `⌥` (modifier-only) for "PlainTextとしてペースト". Hold ⌥ and select an RTF history item — the pasted content has no formatting. Without holding ⌥ — formatting is preserved.

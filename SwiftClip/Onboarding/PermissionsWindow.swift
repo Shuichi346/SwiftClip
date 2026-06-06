@@ -21,8 +21,7 @@ struct PermissionsWindow: View {
 
             HStack {
                 Button(L10n.string("onboarding.openSettings")) {
-                    _ = PermissionsProbe.isAccessibilityTrusted(prompt: true)
-                    openPrivacySettings()
+                    PermissionsProbe.openAccessibilitySettings()
                 }
 
                 Button(L10n.string("onboarding.refresh")) {
@@ -33,13 +32,5 @@ struct PermissionsWindow: View {
             Spacer()
         }
         .padding(24)
-    }
-
-    private func openPrivacySettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
-            return
-        }
-
-        NSWorkspace.shared.open(url)
     }
 }

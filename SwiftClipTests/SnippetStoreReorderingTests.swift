@@ -1,7 +1,6 @@
 import XCTest
 @testable import SwiftClip
 
-@MainActor
 final class SnippetStoreReorderingTests: XCTestCase {
     private var temporaryDirectory: URL!
 
@@ -18,6 +17,7 @@ final class SnippetStoreReorderingTests: XCTestCase {
         temporaryDirectory = nil
     }
 
+    @MainActor
     func testMoveFoldersReordersSortIndexes() {
         let store = makeStore()
         store.addFolder(title: "A")
@@ -31,6 +31,7 @@ final class SnippetStoreReorderingTests: XCTestCase {
         XCTAssertEqual(folders.map(\.sortIndex), [0, 1, 2])
     }
 
+    @MainActor
     func testMoveSnippetsWithinFolderReordersSortIndexes() throws {
         let store = makeStore()
         let folderID = store.addFolder(title: "Folder")
@@ -44,6 +45,7 @@ final class SnippetStoreReorderingTests: XCTestCase {
         XCTAssertEqual(snippets.map(\.sortIndex), [0, 1])
     }
 
+    @MainActor
     func testMoveSnippetWithinSameFolderWithoutDestinationMovesToEnd() throws {
         let store = makeStore()
         let folderID = store.addFolder(title: "Folder")
@@ -58,6 +60,7 @@ final class SnippetStoreReorderingTests: XCTestCase {
         XCTAssertEqual(snippets.map(\.sortIndex), [0, 1, 2])
     }
 
+    @MainActor
     func testMoveSnippetBetweenFoldersInsertsAtRequestedIndex() throws {
         let store = makeStore()
         let sourceFolderID = store.addFolder(title: "Source")
@@ -83,6 +86,61 @@ final class SnippetStoreReorderingTests: XCTestCase {
         XCTAssertEqual(targetSnippets.first?.content, "Payload")
     }
 
+    @MainActor
+    func testLoadNormalizesFolderAndSnippetSortIndexes() throws {
+        let snippetsURL = temporaryDirectory.appendingPathComponent("Snippets.json", isDirectory: false)
+        let firstFolderID = UUID()
+        let secondFolderID = UUID()
+        let lowSnippetID = UUID()
+        let highSnippetID = UUID()
+        let json = """
+        [
+          {
+            "id": "\(secondFolderID.uuidString)",
+            "title": "Second",
+            "sortIndex": 1,
+            "isEnabled": true,
+            "snippets": []
+          },
+          {
+            "id": "\(firstFolderID.uuidString)",
+            "title": "First",
+            "sortIndex": 0,
+            "isEnabled": true,
+            "snippets": [
+              {
+                "id": "\(highSnippetID.uuidString)",
+                "title": "High",
+                "content": "",
+                "attachmentURLs": [],
+                "sortIndex": 9,
+                "isEnabled": true
+              },
+              {
+                "id": "\(lowSnippetID.uuidString)",
+                "title": "Low",
+                "content": "",
+                "attachmentURLs": [],
+                "sortIndex": 2,
+                "isEnabled": true
+              }
+            ]
+          }
+        ]
+        """
+        try Data(json.utf8).write(to: snippetsURL, options: .atomic)
+
+        let store = SnippetStore(fileURL: snippetsURL)
+        store.load()
+
+        let folders = store.allFolders()
+        XCTAssertEqual(folders.map(\.id), [firstFolderID, secondFolderID])
+        XCTAssertEqual(folders.map(\.sortIndex), [0, 1])
+        XCTAssertEqual(folders.first?.snippets.map(\.id), [lowSnippetID, highSnippetID])
+        XCTAssertEqual(folders.first?.snippets.map(\.sortIndex), [0, 1])
+    }
+
+    @MainActor
     private func makeStore() -> SnippetStore {
         SnippetStore(fileURL: temporaryDirectory.appendingPathComponent("Snippets.json"))
     }

@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-05-14
+Last updated: 2026-06-01
 
 ## Implementation Context
 
@@ -11,24 +11,64 @@ Last updated: 2026-05-14
 - The app is configured as a menu-bar accessory app with `LSUIElement = true`.
 - The app icon is `SwiftClip/Resources/AppIcon.icns`, referenced from `Resources/Info.plist` as `CFBundleIconFile = AppIcon`.
 - The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
+- The Extensions preferences tab now exposes only the plain-text paste trigger. Delete-on-select and delete-after-paste preferences and shortcut names were removed, and selecting a history item no longer removes it through those settings.
 
 ## Problems Encountered And Fixes
 
-### Snippet attachments lost file access after restart
+### Snippet editor sidebar auto-collapsed when dragged narrow
 
-Snippet attachments were persisted as external `file://` URL strings. After a Mac restart, SwiftClip could still show the attachment metadata, but the pasteboard write could fail to provide usable file access for the receiving app.
+The snippet editor used `NavigationSplitView` with a sidebar width minimum, but the backing macOS split view could still switch the sidebar column into a hidden collapsed state when the divider crossed AppKit's collapse threshold.
 
 Solution:
-- Copy newly selected or dropped snippet attachments into `Application Support/SwiftClip/SnippetAttachments`.
-- Paste snippets using the app-owned copy URL, not the original external file URL.
-- Show a warning for selected files that are 50 MB or larger, then continue copying.
-- Delete managed attachment copies when an attachment row, snippet, or snippet folder is deleted.
-- Leave legacy external attachment URLs readable and never delete files outside the managed attachment directory.
+- Replaced the editor root `NavigationSplitView` with `HSplitView`, which has no sidebar auto-collapse feature.
+- Kept the current initial sidebar width as `idealWidth = 200`, with `minWidth = 180` and `maxWidth = 220`.
+- Hosted outline row labels in SwiftUI and applied `.lineLimit(1)` plus `.fixedSize(horizontal: true, vertical: false)` to folder and snippet title text.
+- Verified with an Xcode MCP build, command-line XCTest, and `./script/build_and_run.sh --verify`.
 
-Verification:
-- `xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test` passed on 2026-05-16.
-- `./script/build_and_run.sh --verify` built and launched the Debug app on 2026-05-16.
-- A final build with the updated string catalog passed on 2026-05-16.
+### Standalone popup reserved shortcut-column width
+
+The standalone History/Snippets popup inherited the `SwiftClipを終了` `⌘Q` key equivalent from the menu-bar action section. AppKit reserved a keyboard-shortcut column across the whole `NSMenu`, which left extra blank space between snippet folder titles and submenu arrows.
+
+Solution:
+- Added a `showsQuitShortcut` option to `ActionMenuSection.add`.
+- The menu-bar menu keeps `⌘Q`; the standalone popup calls the action section with `showsQuitShortcut: false`.
+
+### Detached JSON persistence could write stale snapshots last
+
+History, snippet, and preferences stores previously wrote JSON snapshots from independent detached tasks. Rapid updates could allow an older snapshot to finish after a newer one, leaving stale persisted state on disk.
+
+Solution:
+- Added `JSONPersistenceQueue`, a serial utility queue for ordered JSON snapshot writes.
+- Routed `HistoryStore`, `SnippetStore`, and `PreferencesStore` persistence through that queue while keeping writes off the main actor.
+- Added `JSONPersistenceQueueTests.testWritesSnapshotsInEnqueueOrder()` to verify final disk state follows enqueue order.
+
+### History paste failures cleared the pasteboard
+
+History item paste handling cleared `NSPasteboard.general` before proving the new item could be written. Invalid file URL history entries or missing blob data could erase the existing clipboard and still drive paste-related side effects.
+
+Solution:
+- Validate file URL history payloads before clearing the pasteboard.
+- Read blob data before clearing the pasteboard.
+- Check `NSPasteboard` write return values for text, files, and blob data before calling `onPasteboardWrite`.
+- Added `SnippetAttachmentTests.testPasteHistoryItemIgnoresInvalidFileURLs()` to assert failed file URL writes leave the existing pasteboard unchanged.
+
+### Snippet load did not canonicalize nested sort indexes
+
+Snippet folders were sorted on load, but nested snippets kept the raw persisted array order even when `sortIndex` values disagreed.
+
+Solution:
+- Normalize loaded folders and snippets by stable `sortIndex` order.
+- Keep `SnippetStore.allFolders()` as a direct snapshot read after load/mutation normalization instead of re-sorting every call.
+- Added `SnippetStoreReorderingTests.testLoadNormalizesFolderAndSnippetSortIndexes()`.
+
+### Xcode test action reported no results
+
+The Xcode MCP `RunAllTests` action listed all tests as `No result` in this session, despite the project building. The command-line test run executed normally.
+
+Solution/status:
+- Used the repo-approved `xcodebuild ... test` command for actual test execution.
+- `xcodebuild` reported `** TEST SUCCEEDED **` for 22 tests.
+- During the first refactor build, `SnippetStore.normalized` briefly missed an explicit `return` in a multi-statement closure; the compile error was fixed before final verification.
 
 ### Mixed text-and-attachment snippet pastes split in chat fields
 
@@ -275,6 +315,7 @@ Release `Info.plist` was checked with `plutil` and included:
 
 ## Remaining Manual Checks
 
+- Reset SwiftClip Accessibility permission and confirm the Paste Permission window's Open Settings button opens System Settings without also showing Apple's native Accessibility Access prompt.
 - Approve Accessibility permission in System Settings and verify automatic paste injection into another app.
 - Exercise the menu-bar UI visually in both English and Japanese system languages.
 - Copy large image/PDF payloads manually to confirm the 50 MB payload cap behavior.
@@ -306,3 +347,17 @@ Manual check still needed:
 
 Follow-up:
 - SwiftUI `TextEditor.onDrop` did not reliably prevent dropped files from being inserted as absolute path text. `SnippetDetailPane` now uses a narrow `NSViewRepresentable` text editor bridge so `NSTextView` intercepts file URL drags and stores them as snippet attachments before the text system inserts a path.
+
+### Accessibility settings prompt duplication
+
+The Paste Permission window's Open Settings button called `AXIsProcessTrustedWithOptions` with `"AXTrustedCheckOptionPrompt": true` and then opened the Accessibility privacy pane directly. That produced both Apple's native Accessibility Access prompt and SwiftClip's own settings route.
+
+Solution:
+- Keep launch, refresh, and paste permission checks non-prompting.
+- Move the direct Accessibility settings URL into `PermissionsProbe.openAccessibilitySettings()`.
+- Make the Paste Permission window's Open Settings button call only the direct settings opener.
+
+Verification:
+- `rg -n "isAccessibilityTrusted\\(prompt: true\\)|AXTrustedCheckOptionPrompt" SwiftClip` now finds only the helper's `"AXTrustedCheckOptionPrompt"` key and no `prompt: true` call sites.
+- `xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /private/tmp/swiftclip-derived CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build` passed on 2026-05-31.
+- The known non-fatal AppIntents metadata warning still appears.

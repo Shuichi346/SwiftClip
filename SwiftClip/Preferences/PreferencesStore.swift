@@ -7,8 +7,6 @@ import SwiftData
 struct PreferencesState: Codable, Equatable, Sendable {
     var launchAtLogin = false
     var pasteAfterSelection = true
-    var deleteAfterPaste = false
-    var deleteOnSelect = false
     var showNumbers = true
     var startNumbersAtZero = false
     var historyLimit = 5
@@ -39,8 +37,6 @@ struct PreferencesState: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
         case pasteAfterSelection
-        case deleteAfterPaste
-        case deleteOnSelect
         case showNumbers
         case startNumbersAtZero
         case historyLimit
@@ -62,8 +58,6 @@ struct PreferencesState: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         pasteAfterSelection = try container.decodeIfPresent(Bool.self, forKey: .pasteAfterSelection) ?? true
-        deleteAfterPaste = try container.decodeIfPresent(Bool.self, forKey: .deleteAfterPaste) ?? false
-        deleteOnSelect = try container.decodeIfPresent(Bool.self, forKey: .deleteOnSelect) ?? false
         showNumbers = try container.decodeIfPresent(Bool.self, forKey: .showNumbers) ?? true
         startNumbersAtZero = try container.decodeIfPresent(Bool.self, forKey: .startNumbersAtZero) ?? false
         historyLimit = try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? 5
@@ -112,6 +106,7 @@ final class PreferencesStore: ObservableObject {
     @Published private(set) var state = PreferencesState()
 
     private let fileURL: URL
+    private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.preferences.persistence")
 
     init(fileURL: URL = FileLocations.preferencesURL) {
         self.fileURL = fileURL
@@ -231,19 +226,8 @@ final class PreferencesStore: ObservableObject {
     }
 
     private func persist() {
-        let state = state
-        let fileURL = fileURL
-
-        Task.detached(priority: .utility) {
-            do {
-                try FileLocations.ensureBaseDirectories()
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let data = try encoder.encode(state)
-                try data.write(to: fileURL, options: .atomic)
-            } catch {
-                AppLog.preferences.error("Could not persist preferences: \(error.localizedDescription, privacy: .public)")
-            }
+        persistenceQueue.write(state, to: fileURL) { error in
+            AppLog.preferences.error("Could not persist preferences: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

@@ -32,6 +32,7 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - Preserve Swift 6 strict concurrency settings.
 - Keep AppKit, NSPasteboard, NSStatusItem, NSWindow, and Accessibility API usage on the main actor unless there is a proven safe boundary.
 - For Accessibility trust prompting, use the string key `"AXTrustedCheckOptionPrompt"` in the options dictionary. Do not use `kAXTrustedCheckOptionPrompt` directly; it previously caused Swift 6 diagnostics.
+- Keep SwiftClip's permission window and Apple's native Accessibility prompt separate. The Paste Permission window's Open Settings action should open System Settings directly and must not call `PermissionsProbe.isAccessibilityTrusted(prompt: true)`.
 - Do not import `FoundationXML` for the Clipy XML codec. Use `Foundation.XMLParser` APIs from `Foundation`.
 
 ## Xcode Project Hygiene
@@ -60,6 +61,7 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - The `Main` global shortcut must not call the status-item click path. It must show the standalone popup next to the current cursor.
 - Build standalone shortcut popups through `StandalonePopupMenuBuilder` and present them with `NSMenu.popUp(positioning:at:in:)` using `NSEvent.mouseLocation`.
 - Preserve the standalone popup structure shown in the user reference: History header, history range submenus, Snippets header, snippet folder submenus, then action items.
+- Keep keyboard equivalents out of the standalone popup unless intentionally accepting AppKit's reserved shortcut-column width. The menu-bar menu may still show shortcuts such as `⌘Q`.
 
 ## Snippet Editing
 
@@ -71,7 +73,9 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 ## Persistence And Clipboard Behavior
 
 - Preserve the separation between JSON metadata and blob files. Do not inline large binary payloads into history JSON.
+- Route asynchronous JSON metadata writes through `JSONPersistenceQueue` or another ordered per-store writer. Do not use independent detached write tasks that can persist older snapshots after newer ones.
 - Keep self-capture suppression around app-initiated pasteboard writes, or selecting a menu item can duplicate it in history.
+- In `PasteEngine`, validate file URLs and read blob data before clearing `NSPasteboard.general`; only call pasteboard-write side effects after the pasteboard write API reports success.
 - For snippet attachments in `SwiftClip/Clipboard/PasteEngine.swift`, keep text and file attachments as separate `NSPasteboardWriting` items. Do not collapse mixed snippets into multiple representations of a single `NSPasteboardItem`.
 - Keep the two-step mixed snippet paste workaround driven by `PreferencesState.mixedSnippetPasteBundleIDs`, not by a hidden hard-coded browser list in `PasteEngine`.
 - App-list preferences should add bundle IDs through an `NSOpenPanel` application picker rather than asking users to type bundle identifiers manually.

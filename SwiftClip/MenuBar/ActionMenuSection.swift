@@ -2,7 +2,7 @@ import AppKit
 
 enum ActionMenuSection {
     @MainActor
-    static func add(to menu: NSMenu, target: StatusItemController) {
+    static func add(to menu: NSMenu, target: StatusItemController, showsQuitShortcut: Bool = true) {
         menu.addItem(.separator())
 
         let clearItem = NSMenuItem(
@@ -34,7 +34,7 @@ enum ActionMenuSection {
         let quitItem = NSMenuItem(
             title: L10n.string("menubar.quit"),
             action: #selector(StatusItemController.quit(_:)),
-            keyEquivalent: "q"
+            keyEquivalent: showsQuitShortcut ? "q" : ""
         )
         quitItem.target = target
         menu.addItem(quitItem)

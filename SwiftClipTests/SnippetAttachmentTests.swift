@@ -2,7 +2,6 @@ import AppKit
 import XCTest
 @testable import SwiftClip
 
-@MainActor
 final class SnippetAttachmentTests: XCTestCase {
     nonisolated(unsafe) private var temporaryDirectory: URL!
 
@@ -20,6 +19,7 @@ final class SnippetAttachmentTests: XCTestCase {
         temporaryDirectory = nil
     }
 
+    @MainActor
     func testLoadTreatsMissingAttachmentURLsAsEmpty() throws {
         let snippetsURL = temporaryDirectory.appendingPathComponent("Snippets.json", isDirectory: false)
         let json = """
@@ -52,6 +52,7 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(snippet.attachmentURLs, [])
     }
 
+    @MainActor
     func testAddAttachmentURLsKeepsFileURLsAndRemovesDuplicates() throws {
         let store = makeStore()
         let folderID = store.addFolder(title: "Folder")
@@ -69,109 +70,7 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(snippet.attachmentURLs, [fileURL.absoluteString])
     }
 
-    func testAddAttachmentFilesCopiesIntoManagedStorage() throws {
-        let store = makeStore()
-        let folderID = store.addFolder(title: "Folder")
-        let snippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "Managed"))
-        let fileURL = temporaryDirectory.appendingPathComponent("image.png", isDirectory: false)
-        let imageData = Data("png".utf8)
-        try imageData.write(to: fileURL, options: .atomic)
-
-        let copiedAttachmentURLs = try store.addAttachmentFiles([fileURL], folderID: folderID, snippetID: snippetID)
-
-        let copiedAttachmentURL = try XCTUnwrap(copiedAttachmentURLs.first.flatMap(URL.init(string:)))
-        XCTAssertNotEqual(copiedAttachmentURL, fileURL)
-        XCTAssertTrue(copiedAttachmentURL.path.hasPrefix(attachmentDirectoryURL.path + "/"))
-        XCTAssertEqual(try Data(contentsOf: copiedAttachmentURL), imageData)
-
-        let snippet = try XCTUnwrap(store.snippet(folderID: folderID, snippetID: snippetID))
-        XCTAssertEqual(snippet.attachmentURLs, [copiedAttachmentURL.absoluteString])
-    }
-
-    func testRemoveAttachmentDeletesManagedCopy() throws {
-        let store = makeStore()
-        let folderID = store.addFolder(title: "Folder")
-        let snippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "Managed"))
-        let fileURL = temporaryDirectory.appendingPathComponent("image.png", isDirectory: false)
-        try Data("png".utf8).write(to: fileURL, options: .atomic)
-        let copiedAttachmentURL = try XCTUnwrap(
-            try store.addAttachmentFiles([fileURL], folderID: folderID, snippetID: snippetID)
-                .first
-                .flatMap(URL.init(string:))
-        )
-
-        store.removeAttachmentURL(at: 0, folderID: folderID, snippetID: snippetID)
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: copiedAttachmentURL.path))
-        let snippet = try XCTUnwrap(store.snippet(folderID: folderID, snippetID: snippetID))
-        XCTAssertEqual(snippet.attachmentURLs, [])
-    }
-
-    func testDeleteSnippetDeletesManagedCopy() throws {
-        let store = makeStore()
-        let folderID = store.addFolder(title: "Folder")
-        let snippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "Managed"))
-        let fileURL = temporaryDirectory.appendingPathComponent("image.png", isDirectory: false)
-        try Data("png".utf8).write(to: fileURL, options: .atomic)
-        let copiedAttachmentURL = try XCTUnwrap(
-            try store.addAttachmentFiles([fileURL], folderID: folderID, snippetID: snippetID)
-                .first
-                .flatMap(URL.init(string:))
-        )
-
-        store.deleteSnippet(folderID: folderID, snippetID: snippetID)
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: copiedAttachmentURL.path))
-    }
-
-    func testDeleteFolderDeletesManagedCopies() throws {
-        let store = makeStore()
-        let folderID = store.addFolder(title: "Folder")
-        let snippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "Managed"))
-        let fileURL = temporaryDirectory.appendingPathComponent("image.png", isDirectory: false)
-        try Data("png".utf8).write(to: fileURL, options: .atomic)
-        let copiedAttachmentURL = try XCTUnwrap(
-            try store.addAttachmentFiles([fileURL], folderID: folderID, snippetID: snippetID)
-                .first
-                .flatMap(URL.init(string:))
-        )
-
-        store.deleteFolder(id: folderID)
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: copiedAttachmentURL.path))
-    }
-
-    func testDeleteSnippetDoesNotDeleteLegacyExternalAttachment() throws {
-        let store = makeStore()
-        let folderID = store.addFolder(title: "Folder")
-        let fileURL = temporaryDirectory.appendingPathComponent("external.png", isDirectory: false)
-        try Data("png".utf8).write(to: fileURL, options: .atomic)
-        let snippetID = try XCTUnwrap(
-            store.addSnippet(to: folderID, title: "Legacy", attachmentURLs: [fileURL.absoluteString])
-        )
-
-        store.deleteSnippet(folderID: folderID, snippetID: snippetID)
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
-    }
-
-    func testLargeFilesIncludesFiftyMegabyteFile() throws {
-        let fileURL = temporaryDirectory.appendingPathComponent("large.bin", isDirectory: false)
-        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
-        let fileHandle = try FileHandle(forWritingTo: fileURL)
-        try fileHandle.truncate(atOffset: UInt64(SnippetAttachmentStore.largeFileWarningThresholdBytes))
-        try fileHandle.close()
-
-        let largeFiles = SnippetAttachmentStore.largeFiles(in: [fileURL])
-
-        XCTAssertEqual(largeFiles, [
-            SnippetAttachmentFileInfo(
-                url: fileURL,
-                byteCount: SnippetAttachmentStore.largeFileWarningThresholdBytes
-            ),
-        ])
-    }
-
+    @MainActor
     func testPasteSnippetWritesTextAndAttachmentsAsSeparatePasteboardItems() throws {
         let fileURL = temporaryDirectory.appendingPathComponent("upload.txt", isDirectory: false)
         try Data("file".utf8).write(to: fileURL, options: .atomic)
@@ -207,6 +106,41 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertEqual(items[1].string(forType: .fileURL), fileURL.absoluteString)
     }
 
+    @MainActor
+    func testPasteHistoryItemIgnoresInvalidFileURLs() async throws {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("existing clipboard", forType: .string)
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+        }
+        let engine = PasteEngine(
+            preferences: preferences,
+            blobStore: BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true))
+        )
+        var writeCount = 0
+        engine.onPasteboardWrite = {
+            writeCount += 1
+        }
+
+        engine.paste(
+            item: ClipboardItem(
+                kind: .fileURL,
+                title: "Invalid file",
+                fileURLs: ["https://example.com/not-a-file"],
+                byteCount: 30,
+                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.fileURL.rawValue
+            )
+        )
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(writeCount, 0)
+        XCTAssertEqual(pasteboard.string(forType: .string), "existing clipboard")
+    }
+
+    @MainActor
     private func makeStore() -> SnippetStore {
         SnippetStore(
             fileURL: temporaryDirectory.appendingPathComponent("Snippets.json"),

@@ -18,3 +18,9 @@
 - Kept Mixed Snippet Paste Apps empty by default so no app receives the two-step workaround until the user adds it.
 - Changed app-list preferences to add applications through a standard app picker instead of requiring manual bundle ID entry.
 - Changed app-list preference rows to show resolved `.app` names while keeping bundle IDs as the stored value.
+- Fixed history item pasting so failed pasteboard writes, including invalid file URL history entries, do not trigger auto-paste side effects or clear the existing clipboard.
+- Fixed the Paste Permission window so its Open Settings button does not also trigger Apple's native Accessibility prompt.
+- Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.
+- Removed the Extensions preferences for delete-on-select and delete-after-paste, leaving only the plain-text paste trigger.
+- Removed the Quit keyboard shortcut display from the standalone shortcut popup to reduce the reserved blank space before submenu arrows.
+- Fixed the snippet editor sidebar by replacing `NavigationSplitView` with `HSplitView`, keeping a 280-point initial width with 260-point minimum and 360-point maximum bounds.

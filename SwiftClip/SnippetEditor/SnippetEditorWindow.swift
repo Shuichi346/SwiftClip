@@ -1,5 +1,11 @@
 import SwiftUI
 
+private enum SnippetEditorLayout {
+    static let sidebarMinWidth: CGFloat = 180
+    static let sidebarIdealWidth: CGFloat = 200
+    static let sidebarMaxWidth: CGFloat = 220
+}
+
 enum SnippetSelection: Hashable, Identifiable {
     case folder(UUID)
     case snippet(folderID: UUID, snippetID: UUID)
@@ -26,15 +32,21 @@ struct SnippetEditorWindow: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             SnippetOutlineView(
                 snippets: snippets,
                 selection: $selection,
                 expandedFolderIDs: $expandedFolderIDs
             )
-            .navigationSplitViewColumnWidth(min: 220, ideal: 260)
-        } detail: {
+            .frame(
+                minWidth: SnippetEditorLayout.sidebarMinWidth,
+                idealWidth: SnippetEditorLayout.sidebarIdealWidth,
+                maxWidth: SnippetEditorLayout.sidebarMaxWidth,
+                maxHeight: .infinity
+            )
+
             SnippetDetailPane(snippets: snippets, selection: selection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .toolbar {
             SnippetToolbar(
