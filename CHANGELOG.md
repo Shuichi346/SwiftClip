@@ -12,6 +12,7 @@
 - Fixed startup loading of persisted clipboard history and aligned the snippet outline drag payload UTI with the app's exported type declaration.
 - Migrated the snippet sidebar to `NSOutlineView` so cross-folder snippet drag-and-drop works reliably.
 - Added snippet attachments for local files, images, and videos so snippets can paste file objects with optional text instead of pasting absolute paths as text.
+- Changed snippet attachments to copy selected files into SwiftClip's Application Support storage and clean up managed copies when attachments or snippets are deleted.
 - Fixed mixed text-and-attachment snippet pasting so text and files are written as separate pasteboard items, with an app-configurable auto-paste path for apps that route file pastes through upload handling.
 - Added a Mixed Snippet Paste Apps preference list so users can choose which bundle IDs use the two-step text-then-attachments paste workaround.
 - Kept Mixed Snippet Paste Apps empty by default so no app receives the two-step workaround until the user adds it.

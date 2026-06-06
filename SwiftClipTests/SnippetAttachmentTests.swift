@@ -3,7 +3,7 @@ import XCTest
 @testable import SwiftClip
 
 final class SnippetAttachmentTests: XCTestCase {
-    private var temporaryDirectory: URL!
+    nonisolated(unsafe) private var temporaryDirectory: URL!
 
     override func setUpWithError() throws {
         temporaryDirectory = FileManager.default.temporaryDirectory
@@ -142,6 +142,13 @@ final class SnippetAttachmentTests: XCTestCase {
 
     @MainActor
     private func makeStore() -> SnippetStore {
-        SnippetStore(fileURL: temporaryDirectory.appendingPathComponent("Snippets.json"))
+        SnippetStore(
+            fileURL: temporaryDirectory.appendingPathComponent("Snippets.json"),
+            attachmentDirectoryURL: attachmentDirectoryURL
+        )
+    }
+
+    private var attachmentDirectoryURL: URL {
+        temporaryDirectory.appendingPathComponent("SnippetAttachments", isDirectory: true)
     }
 }

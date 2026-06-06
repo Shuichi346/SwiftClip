@@ -35,6 +35,10 @@ enum FileLocations {
         appSupportRoot.appendingPathComponent("Blobs", isDirectory: true)
     }
 
+    static var snippetAttachmentDirectoryURL: URL {
+        appSupportRoot.appendingPathComponent("SnippetAttachments", isDirectory: true)
+    }
+
     static var backupDirectoryURL: URL {
         appSupportRoot.appendingPathComponent("Backups", isDirectory: true)
     }
@@ -43,6 +47,7 @@ enum FileLocations {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: appSupportRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: blobDirectoryURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: snippetAttachmentDirectoryURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: backupDirectoryURL, withIntermediateDirectories: true)
     }
 }

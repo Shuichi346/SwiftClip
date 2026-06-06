@@ -106,7 +106,7 @@ struct SnippetDetailPane: View {
                         snippets.updateSnippet(folderID: folderID, snippetID: snippet.id, content: content)
                     },
                     onFileDrop: { urls in
-                        snippets.addAttachmentURLs(urls.map(\.absoluteString), folderID: folderID, snippetID: snippet.id)
+                        addAttachmentFiles(urls, folderID: folderID, snippetID: snippet.id)
                     },
                     isFileTargeted: $isFileDropTarget
                 )
@@ -132,7 +132,7 @@ struct SnippetDetailPane: View {
                 return
             }
 
-            snippets.addAttachmentURLs(urls.map(\.absoluteString), folderID: folderID, snippetID: snippet.id)
+            addAttachmentFiles(urls, folderID: folderID, snippetID: snippet.id)
         }
     }
 
@@ -211,20 +211,53 @@ struct SnippetDetailPane: View {
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
             provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
                 guard let data,
-                      let attachmentURL = Self.fileURLString(from: data) else {
+                      let attachmentURL = Self.fileURL(from: data) else {
                     return
                 }
 
                 Task { @MainActor in
-                    snippets.addAttachmentURLs([attachmentURL], folderID: folderID, snippetID: snippetID)
+                    addAttachmentFiles([attachmentURL], folderID: folderID, snippetID: snippetID)
                 }
             }
         }
     }
 
-    nonisolated private static func fileURLString(from data: Data) -> String? {
+    private func addAttachmentFiles(_ urls: [URL], folderID: UUID, snippetID: UUID) {
+        showLargeAttachmentWarningIfNeeded(for: urls)
+
+        do {
+            try snippets.addAttachmentFiles(urls, folderID: folderID, snippetID: snippetID)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
+    }
+
+    private func showLargeAttachmentWarningIfNeeded(for urls: [URL]) {
+        let largeFiles = SnippetAttachmentStore.largeFiles(in: urls)
+        guard !largeFiles.isEmpty else {
+            return
+        }
+
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useGB]
+        formatter.countStyle = .file
+
+        let fileList = largeFiles
+            .map { "\($0.url.lastPathComponent) (\(formatter.string(fromByteCount: $0.byteCount)))" }
+            .joined(separator: "\n")
+
+        let alert = NSAlert()
+        alert.messageText = L10n.string("alert.largeAttachment.title")
+        alert.informativeText = String(format: L10n.string("alert.largeAttachment.body"), fileList)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.string("alert.ok"))
+        alert.runModal()
+    }
+
+    nonisolated private static func fileURL(from data: Data) -> URL? {
         if let url = URL(dataRepresentation: data, relativeTo: nil), url.isFileURL {
-            return url.absoluteString
+            return url
         }
 
         guard let string = String(data: data, encoding: .utf8),
@@ -232,7 +265,7 @@ struct SnippetDetailPane: View {
               url.isFileURL else {
             return nil
         }
-        return url.absoluteString
+        return url
     }
 
     private func fileName(for attachmentURL: String) -> String {
