@@ -20,6 +20,7 @@ SwiftClip is a local-first macOS menu-bar clipboard manager and snippet launcher
 - [Build From Source](#build-from-source)
 - [Testing](#testing)
 - [Usage](#usage)
+- [Snippet Import, Export, and Backup](#snippet-import-export-and-backup)
 - [Preferences](#preferences)
 - [Local Data](#local-data)
 - [Project Structure](#project-structure)
@@ -41,6 +42,7 @@ The snippet editor organizes folders and snippets in a sidebar, with editable sn
 - Snippet attachments for local files, images, and videos, with optional prompt text.
 - Mixed snippet paste support that can paste text first and attachments second for selected apps.
 - Clipy-compatible XML import and export for snippet migration.
+- Restorable `.swiftclipbackup` safety backups that preserve snippet IDs, enabled states, ordering, shortcuts, and managed attachment files before destructive library replacement or restore operations.
 - Format filtering for plain text, RTF, RTFD, file URLs, URLs, PDFs, and images.
 - App-specific preferences for excluded capture apps and mixed-snippet paste apps, selected through a standard app picker.
 - Local JSON metadata storage with separate blob files for larger clipboard payloads.
@@ -58,7 +60,7 @@ The snippet editor organizes folders and snippets in a sidebar, with editable sn
 
 - macOS 26.0 or later
 - Apple Silicon Mac
-- Xcode 26.4 or later
+- Xcode 26.6 or later
 - Accessibility permission for automatic paste injection
 
 ## Build From Source
@@ -101,7 +103,7 @@ xcodebuild -project SwiftClip.xcodeproj \
   test
 ```
 
-The tests cover blob storage, Clipy XML import/export, history persistence, menu title formatting, preferences persistence, and snippet reordering behavior.
+The 41 tests cover clipboard capture and paste fidelity, blob-path safety, history and preferences persistence, ordered JSON writes, Clipy XML import/export, complete snippet backup and restore, shortcut cleanup and migration, managed attachments, menu title formatting, and snippet reordering.
 
 ## Usage
 
@@ -109,7 +111,15 @@ The tests cover blob storage, Clipy XML import/export, history persistence, menu
 2. Grant Accessibility permission when prompted if you want SwiftClip to paste selected items into the previously focused app.
 3. Use the menu-bar item to browse clipboard history, snippets, preferences, and app actions.
 4. Configure shortcuts in Preferences.
-5. Open Snippet Editor to create folders, edit snippets, attach files, assign snippet shortcuts, import Clipy XML, or export SwiftClip snippets.
+5. Open Snippet Editor to create folders, edit snippets, attach files, assign folder or snippet shortcuts, import or export Clipy XML, and restore SwiftClip backups.
+
+## Snippet Import, Export, and Backup
+
+- **Export** writes a Clipy-compatible XML file to a location you choose. It is intended for migration and contains folder names, snippet names, text content, and ordering. It does not include SwiftClip IDs, enabled states, shortcuts, or attachments.
+- **Import** can append the XML contents to the current library or replace the library. SwiftClip creates a complete safety backup before a replacement begins; append imports do not create a backup.
+- **Restore Backup** replaces the current snippet library from a `.swiftclipbackup` package. The package preserves IDs, enabled states, ordering, folder and snippet shortcuts, and SwiftClip-managed attachment files. SwiftClip also backs up the current library before starting a restore.
+
+Safety backups are stored in `~/Library/Application Support/SwiftClip/Backups`. They are not pruned automatically, so old backup packages remain until they are removed manually.
 
 ## Preferences
 
@@ -140,6 +150,10 @@ Current local files include:
 - `History.json`
 - `Snippets.json`
 - `Blobs/`
+- `SnippetAttachments/`
+- `Backups/`
+
+`SnippetAttachments/` contains managed copies of files attached to snippets. `Backups/` contains the versioned `.swiftclipbackup` packages created before XML replacement imports and backup restores.
 
 ## Project Structure
 
@@ -151,9 +165,9 @@ SwiftClip/
   Onboarding/       Permission prompt UI
   Preferences/      Preferences store and settings tabs
   SnippetEditor/    Snippet editor window, outline, toolbar, and detail pane
-  Snippets/         Snippet models, store, and Clipy XML codec
+  Snippets/         Snippet models, store, Clipy XML codec, and backup support
   Support/          Shared logging, localization, errors, and file locations
-SwiftClipTests/     XCTest coverage for persistence, menus, blobs, XML, and ordering
+SwiftClipTests/     XCTest coverage for persistence, paste behavior, backups, shortcuts, and ordering
 script/             Local build and launch helper
 ```
 
