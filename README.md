@@ -51,7 +51,7 @@ The snippet editor organizes folders and snippets in a sidebar, with editable sn
 - Swift 6
 - SwiftUI and AppKit
 - SwiftData model definitions for preferences scaffolding, with current stores backed by local JSON files
-- KeyboardShortcuts 2.4.0 or newer compatible release
+- KeyboardShortcuts 3.0.1 or newer compatible release
 - Xcode project-based macOS app build
 
 ## Requirements

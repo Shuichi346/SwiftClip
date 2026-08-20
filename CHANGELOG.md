@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Updated the `KeyboardShortcuts` package requirement to version 3.0.1 or newer compatible release.
 - Bootstrapped the SwiftClip macOS menu-bar app.
 - Added local clipboard history, snippet management, preferences, shortcuts, localization, and build/run documentation.
 - Added the app icon as `SwiftClip/Resources/AppIcon.icns` and wired it through `CFBundleIconFile` for Xcode builds and packaged app bundles.

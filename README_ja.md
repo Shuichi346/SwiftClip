@@ -51,7 +51,7 @@ SwiftClip は、Clipy の UI と使いやすさにインスパイアされた、
 - Swift 6
 - SwiftUI および AppKit
 - 設定のスキャフォールディング用 SwiftData モデル定義（現在のストアはローカル JSON ファイルを使用）
-- KeyboardShortcuts 2.4.0 以降の互換リリース
+- KeyboardShortcuts 3.0.1 以降の互換リリース
 - Xcode プロジェクトベースの macOS アプリビルド
 
 ## 動作要件

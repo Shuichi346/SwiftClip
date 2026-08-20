@@ -23,7 +23,7 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 
 ## Dependencies
 
-- Keep `KeyboardShortcuts` as an Xcode package dependency from `https://github.com/sindresorhus/KeyboardShortcuts.git`, version `2.4.0` or newer compatible release.
+- Keep `KeyboardShortcuts` as an Xcode package dependency from `https://github.com/sindresorhus/KeyboardShortcuts.git`, version `3.0.1` or newer compatible release.
 - If package resolution fails, resolve packages through Xcode or rerun `xcodebuild -list -project SwiftClip.xcodeproj` with network permission.
 - Do not vendor or reimplement keyboard-shortcut capture unless the dependency becomes unusable.
 

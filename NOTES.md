@@ -1,12 +1,12 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-06-06
+Last updated: 2026-08-20
 
 ## Implementation Context
 
 - The app was created from `PLANS.md` as a macOS 26+ SwiftUI/AppKit menu-bar clipboard manager.
 - The primary project is `SwiftClip.xcodeproj`.
-- The app uses `KeyboardShortcuts` from `https://github.com/sindresorhus/KeyboardShortcuts.git`, pinned from version `2.4.0`.
+- The app uses `KeyboardShortcuts` from `https://github.com/sindresorhus/KeyboardShortcuts.git`, with a minimum version of `3.0.1` and an up-to-next-major requirement.
 - The bundle identifier used by the generated project is `app.swiftclip.SwiftClip`.
 - The app is configured as a menu-bar accessory app with `LSUIElement = true`.
 - The app icon is `SwiftClip/Resources/AppIcon.icns`, referenced from `Resources/Info.plist` as `CFBundleIconFile = AppIcon`.
@@ -14,6 +14,10 @@ Last updated: 2026-06-06
 - The Extensions preferences tab now exposes only the plain-text paste trigger. Delete-on-select and delete-after-paste preferences and shortcut names were removed, and selecting a history item no longer removes it through those settings.
 
 ## Problems Encountered And Fixes
+
+### KeyboardShortcuts 3.0.1 dependency upgrade
+
+The Xcode package requirement was raised from 2.4.0 to 3.0.1. SwiftClip does not use the 3.0 breaking `default:` or `defaultShortcut` APIs, so no app-source migration was required. Package resolution, Debug and Release builds, and the full XCTest suite succeeded with 3.0.1 on Swift 6.3.3.
 
 ### Merge conflict resolution dropped snippet attachment store state
 
