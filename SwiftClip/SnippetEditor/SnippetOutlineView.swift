@@ -429,9 +429,13 @@ extension SnippetOutlineView {
         private func applyCurrentState(to outlineView: NSOutlineView) {
             let folders = snippets.allFolders()
             let structure = OutlineSection.sections(from: folders)
-            rebuildTree(from: folders)
-
             let structureChanged = structure != lastStructure
+            if structureChanged {
+                rebuildTree(from: folders)
+            } else {
+                updateCachedValues(from: folders)
+            }
+
             isApplyingExternalUpdate = true
             defer {
                 isApplyingExternalUpdate = false
@@ -463,7 +467,7 @@ extension SnippetOutlineView {
                 activeKeys.insert(folderKey)
                 nextFolders[folder.id] = folder
 
-                for snippet in folder.snippets.sorted(by: { $0.sortIndex < $1.sortIndex }) {
+                for snippet in folder.snippets {
                     let snippetKey = SnippetOutlineNode.Key.snippet(folderID: folder.id, snippetID: snippet.id)
                     let snippetNode = node(for: snippetKey)
                     snippetNode.parent = folderNode
@@ -480,6 +484,20 @@ extension SnippetOutlineView {
             rootNodes = nextRootNodes
             folderByID = nextFolders
             snippetByKey = nextSnippets
+        }
+
+        private func updateCachedValues(from folders: [SnippetSummary]) {
+            folderByID = Dictionary(uniqueKeysWithValues: folders.map { ($0.id, $0) })
+            snippetByKey = Dictionary(
+                uniqueKeysWithValues: folders.flatMap { folder in
+                    folder.snippets.map { snippet in
+                        (
+                            SnippetOutlineNode.Key.snippet(folderID: folder.id, snippetID: snippet.id),
+                            snippet
+                        )
+                    }
+                }
+            )
         }
 
         private func node(for key: SnippetOutlineNode.Key) -> SnippetOutlineNode {
@@ -790,9 +808,7 @@ private struct OutlineSection: Equatable {
         folders.map { folder in
             OutlineSection(
                 folderID: folder.id,
-                snippetIDs: folder.snippets
-                    .sorted { $0.sortIndex < $1.sortIndex }
-                    .map(\.id)
+                snippetIDs: folder.snippets.map(\.id)
             )
         }
     }

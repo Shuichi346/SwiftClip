@@ -8,25 +8,30 @@ final class SnippetStore: ObservableObject {
     private let fileURL: URL
     private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.snippets.persistence")
     private let attachmentStore: SnippetAttachmentStore
+    private let backupStore: SnippetLibraryBackupStore
+    private var isBulkOperationInProgress = false
 
     init(
         fileURL: URL = FileLocations.snippetsIndexURL,
-        attachmentDirectoryURL: URL = FileLocations.snippetAttachmentDirectoryURL
+        attachmentDirectoryURL: URL = FileLocations.snippetAttachmentDirectoryURL,
+        backupDirectoryURL: URL? = nil
     ) {
         self.fileURL = fileURL
         attachmentStore = SnippetAttachmentStore(directoryURL: attachmentDirectoryURL)
+        backupStore = SnippetLibraryBackupStore(
+            backupDirectoryURL: backupDirectoryURL
+                ?? fileURL.deletingLastPathComponent().appendingPathComponent("Backups", isDirectory: true),
+            attachmentDirectoryURL: attachmentDirectoryURL
+        )
     }
 
-    func load() {
+    func load() async {
         do {
-            try FileLocations.ensureBaseDirectories()
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            guard let decoded = try await Self.readFolders(from: fileURL) else {
                 persist()
                 return
             }
 
-            let data = try Data(contentsOf: fileURL)
-            let decoded = try JSONDecoder().decode([SnippetSummary].self, from: data)
             folders = normalized(orderedBySortIndex(decoded, keyPath: \.sortIndex), orderSnippetsBySortIndex: true)
         } catch {
             AppLog.snippets.error("Could not load snippets: \(error.localizedDescription, privacy: .public)")
@@ -48,6 +53,10 @@ final class SnippetStore: ObservableObject {
 
     @discardableResult
     func addFolder(title: String = L10n.string("editor.untitledFolder")) -> UUID {
+        guard !isBulkOperationInProgress else {
+            return UUID()
+        }
+
         let folderID = UUID()
         let sortIndex = folders.count
         folders.append(SnippetSummary(id: folderID, title: title, sortIndex: sortIndex))
@@ -62,6 +71,10 @@ final class SnippetStore: ObservableObject {
         content: String = "",
         attachmentURLs: [String] = []
     ) -> UUID? {
+        guard !isBulkOperationInProgress else {
+            return nil
+        }
+
         let targetFolderID = folderID ?? folders.first?.id ?? addFolder()
         guard let folderIndex = folders.firstIndex(where: { $0.id == targetFolderID }) else {
             return nil
@@ -83,6 +96,10 @@ final class SnippetStore: ObservableObject {
     }
 
     func updateFolder(id: UUID, title: String? = nil, isEnabled: Bool? = nil) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let index = folders.firstIndex(where: { $0.id == id }) else {
             return
         }
@@ -93,7 +110,7 @@ final class SnippetStore: ObservableObject {
         if let isEnabled {
             folders[index].isEnabled = isEnabled
         }
-        persist()
+        persist(debounced: title != nil && isEnabled == nil)
     }
 
     func updateSnippet(
@@ -104,6 +121,10 @@ final class SnippetStore: ObservableObject {
         attachmentURLs: [String]? = nil,
         isEnabled: Bool? = nil
     ) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
             return
@@ -115,18 +136,25 @@ final class SnippetStore: ObservableObject {
         if let content {
             folders[folderIndex].snippets[snippetIndex].content = content
         }
+        var removedAttachmentURLs: [String] = []
         if let attachmentURLs {
-            let removedAttachmentURLs = folders[folderIndex].snippets[snippetIndex].attachmentURLs
+            removedAttachmentURLs = folders[folderIndex].snippets[snippetIndex].attachmentURLs
             folders[folderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(attachmentURLs)
-            deleteUnreferencedManagedAttachments(removedAttachmentURLs)
         }
         if let isEnabled {
             folders[folderIndex].snippets[snippetIndex].isEnabled = isEnabled
         }
-        persist()
+        let shouldDebounce = removedAttachmentURLs.isEmpty
+            && isEnabled == nil
+            && (title != nil || content != nil)
+        persist(debounced: shouldDebounce, deleting: removedAttachmentURLs)
     }
 
     func addAttachmentURLs(_ attachmentURLs: [String], folderID: UUID, snippetID: UUID) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
             return
@@ -138,16 +166,29 @@ final class SnippetStore: ObservableObject {
     }
 
     @discardableResult
-    func addAttachmentFiles(_ fileURLs: [URL], folderID: UUID, snippetID: UUID) throws -> [String] {
-        guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
-              let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
+    func addAttachmentFiles(_ fileURLs: [URL], folderID: UUID, snippetID: UUID) async throws -> [String] {
+        guard !isBulkOperationInProgress else {
             return []
         }
 
-        let copiedURLs = try attachmentStore.copyFiles(fileURLs)
+        guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
+              folders[folderIndex].snippets.contains(where: { $0.id == snippetID }) else {
+            return []
+        }
+
+        let copiedURLs = try await attachmentStore.copyFiles(fileURLs)
+        guard !isBulkOperationInProgress,
+              let currentFolderIndex = folders.firstIndex(where: { $0.id == folderID }),
+              let snippetIndex = folders[currentFolderIndex].snippets.firstIndex(where: { $0.id == snippetID }) else {
+            for copiedURL in copiedURLs {
+                await attachmentStore.deleteIfManaged(copiedURL.absoluteString)
+            }
+            return []
+        }
+
         let copiedAttachmentURLs = copiedURLs.map(\.absoluteString)
-        let existing = folders[folderIndex].snippets[snippetIndex].attachmentURLs
-        folders[folderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(
+        let existing = folders[currentFolderIndex].snippets[snippetIndex].attachmentURLs
+        folders[currentFolderIndex].snippets[snippetIndex].attachmentURLs = normalizedAttachmentURLs(
             existing + copiedAttachmentURLs
         )
         persist()
@@ -155,6 +196,10 @@ final class SnippetStore: ObservableObject {
     }
 
     func removeAttachmentURL(at index: Int, folderID: UUID, snippetID: UUID) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }),
               let snippetIndex = folders[folderIndex].snippets.firstIndex(where: { $0.id == snippetID }),
               folders[folderIndex].snippets[snippetIndex].attachmentURLs.indices.contains(index) else {
@@ -163,36 +208,61 @@ final class SnippetStore: ObservableObject {
 
         let removedAttachmentURL = folders[folderIndex].snippets[snippetIndex].attachmentURLs[index]
         folders[folderIndex].snippets[snippetIndex].attachmentURLs.remove(at: index)
-        deleteUnreferencedManagedAttachments([removedAttachmentURL])
-        persist()
+        persist(deleting: [removedAttachmentURL])
     }
 
     func deleteFolder(id: UUID) {
-        let removedAttachmentURLs = folders
-            .first { $0.id == id }?
-            .snippets
-            .flatMap(\.attachmentURLs) ?? []
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
+        guard let removedFolder = folders.first(where: { $0.id == id }) else {
+            return
+        }
+
+        let removedAttachmentURLs = removedFolder.snippets.flatMap(\.attachmentURLs)
         folders.removeAll { $0.id == id }
         normalizeSortIndexes()
-        deleteUnreferencedManagedAttachments(removedAttachmentURLs)
-        persist()
+        persist(
+            deleting: removedAttachmentURLs,
+            removingShortcutsFrom: [removedFolder]
+        )
     }
 
     func deleteSnippet(folderID: UUID, snippetID: UUID) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }) else {
             return
         }
 
-        let removedAttachmentURLs = folders[folderIndex].snippets
-            .first { $0.id == snippetID }?
-            .attachmentURLs ?? []
+        guard let removedSnippet = folders[folderIndex].snippets.first(where: { $0.id == snippetID }) else {
+            return
+        }
+
+        let removedAttachmentURLs = removedSnippet.attachmentURLs
+        let shortcutCleanupFolder = SnippetSummary(
+            id: folders[folderIndex].id,
+            title: folders[folderIndex].title,
+            sortIndex: folders[folderIndex].sortIndex,
+            isEnabled: folders[folderIndex].isEnabled,
+            snippets: [removedSnippet]
+        )
         folders[folderIndex].snippets.removeAll { $0.id == snippetID }
         normalizeSnippetSortIndexes(folderIndex: folderIndex)
-        deleteUnreferencedManagedAttachments(removedAttachmentURLs)
-        persist()
+        persist(
+            deleting: removedAttachmentURLs,
+            removingShortcutsFrom: [shortcutCleanupFolder]
+        )
     }
 
     func moveFolders(fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         var orderedFolders = allFolders()
         orderedFolders.move(fromOffsets: source, toOffset: destination)
         folders = normalized(orderedFolders)
@@ -200,6 +270,10 @@ final class SnippetStore: ObservableObject {
     }
 
     func moveFolder(id: UUID, toIndex destination: Int) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         var orderedFolders = allFolders()
         guard let sourceIndex = orderedFolders.firstIndex(where: { $0.id == id }) else {
             return
@@ -214,6 +288,10 @@ final class SnippetStore: ObservableObject {
     }
 
     func moveSnippets(in folderID: UUID, fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let folderIndex = folders.firstIndex(where: { $0.id == folderID }) else {
             return
         }
@@ -225,6 +303,10 @@ final class SnippetStore: ObservableObject {
     }
 
     func moveSnippet(snippetID: UUID, fromFolderID: UUID, toFolderID: UUID, toIndex destination: Int? = nil) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         guard let sourceFolderIndex = folders.firstIndex(where: { $0.id == fromFolderID }),
               let targetFolderIndex = folders.firstIndex(where: { $0.id == toFolderID }) else {
             return
@@ -262,15 +344,71 @@ final class SnippetStore: ObservableObject {
             .first { $0.id == snippetID }
     }
 
-    func replaceAll(with importedFolders: [SnippetSummary]) throws {
-        try writeBackup()
-        let removedAttachmentURLs = folders.flatMap { $0.snippets.flatMap(\.attachmentURLs) }
-        folders = normalized(importedFolders)
-        deleteUnreferencedManagedAttachments(removedAttachmentURLs)
-        persist()
+    func replaceAll(with importedFolders: [SnippetSummary]) async throws {
+        guard !isBulkOperationInProgress else {
+            throw SwiftClipError.snippetsPersistenceFailed("Another snippet operation is already in progress.")
+        }
+
+        isBulkOperationInProgress = true
+        defer {
+            isBulkOperationInProgress = false
+        }
+
+        let previousFolders = folders
+        let shortcuts = SnippetShortcutStorage.backupRecords(for: previousFolders)
+        _ = try await backupStore.createBackup(folders: previousFolders, shortcuts: shortcuts)
+
+        let replacement = normalized(importedFolders)
+        try await persistenceQueue.writeAndWait(replacement, to: fileURL)
+
+        SnippetShortcutStorage.removeShortcuts(
+            removedFrom: previousFolders,
+            retainedIn: replacement
+        )
+        folders = replacement
+        await deleteUnreferencedManagedAttachments(
+            previousFolders.flatMap { $0.snippets.flatMap(\.attachmentURLs) }
+        )
+    }
+
+    func restoreBackup(from backupURL: URL) async throws {
+        guard !isBulkOperationInProgress else {
+            throw SwiftClipError.snippetsPersistenceFailed("Another snippet operation is already in progress.")
+        }
+
+        isBulkOperationInProgress = true
+        defer {
+            isBulkOperationInProgress = false
+        }
+
+        let previousFolders = folders
+        let currentShortcuts = SnippetShortcutStorage.backupRecords(for: previousFolders)
+        _ = try await backupStore.createBackup(
+            folders: previousFolders,
+            shortcuts: currentShortcuts
+        )
+
+        let preparedRestore = try await backupStore.prepareRestore(from: backupURL)
+        let restoredFolders = normalized(preparedRestore.folders)
+        do {
+            try await persistenceQueue.writeAndWait(restoredFolders, to: fileURL)
+        } catch {
+            await backupStore.discardPreparedRestore(preparedRestore)
+            throw error
+        }
+
+        SnippetShortcutStorage.restore(preparedRestore.shortcuts)
+        folders = restoredFolders
+        await deleteUnreferencedManagedAttachments(
+            previousFolders.flatMap { $0.snippets.flatMap(\.attachmentURLs) }
+        )
     }
 
     func append(_ importedFolders: [SnippetSummary]) {
+        guard !isBulkOperationInProgress else {
+            return
+        }
+
         let startIndex = folders.count
         let appended = importedFolders.enumerated().map { offset, folder in
             SnippetSummary(
@@ -292,16 +430,6 @@ final class SnippetStore: ObservableObject {
         }
         folders.append(contentsOf: appended)
         persist()
-    }
-
-    private func writeBackup() throws {
-        try FileLocations.ensureBaseDirectories()
-        let data = try ClipyXMLCodec.encode(folders: allFolders())
-        let formatter = ISO8601DateFormatter()
-        let stamp = formatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        let backupURL = FileLocations.backupDirectoryURL
-            .appendingPathComponent("snippets-pre-import-\(stamp).xml", isDirectory: false)
-        try data.write(to: backupURL, options: .atomic)
     }
 
     private func normalized(
@@ -395,19 +523,65 @@ final class SnippetStore: ObservableObject {
             .map(\.element)
     }
 
-    private func deleteUnreferencedManagedAttachments(_ attachmentURLs: [String]) {
+    private func deleteUnreferencedManagedAttachments(_ attachmentURLs: [String]) async {
         let referencedAttachmentURLs = Set(folders.flatMap { folder in
             folder.snippets.flatMap(\.attachmentURLs)
         })
 
         for attachmentURL in attachmentURLs where !referencedAttachmentURLs.contains(attachmentURL) {
-            attachmentStore.deleteIfManaged(attachmentURL)
+            await attachmentStore.deleteIfManaged(attachmentURL)
         }
     }
 
-    private func persist() {
-        persistenceQueue.write(folders, to: fileURL) { error in
-            AppLog.snippets.error("Could not persist snippets: \(error.localizedDescription, privacy: .public)")
+    func flushPersistence() {
+        persistenceQueue.flush()
+    }
+
+    private func persist(
+        debounced: Bool = false,
+        deleting removedAttachmentURLs: [String] = [],
+        removingShortcutsFrom removedFolders: [SnippetSummary] = []
+    ) {
+        if !removedAttachmentURLs.isEmpty || !removedFolders.isEmpty {
+            persistenceQueue.write(folders, to: fileURL) { [weak self] result in
+                switch result {
+                case .success:
+                    Task { @MainActor [weak self] in
+                        guard let self else {
+                            return
+                        }
+                        SnippetShortcutStorage.removeShortcuts(
+                            removedFrom: removedFolders,
+                            retainedIn: folders
+                        )
+                        await deleteUnreferencedManagedAttachments(removedAttachmentURLs)
+                    }
+                case .failure(let error):
+                    AppLog.snippets.error("Could not persist snippets: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            return
         }
+
+        if debounced {
+            persistenceQueue.writeDebounced(folders, to: fileURL) { error in
+                AppLog.snippets.error("Could not persist snippets: \(error.localizedDescription, privacy: .public)")
+            }
+        } else {
+            persistenceQueue.write(folders, to: fileURL) { error in
+                AppLog.snippets.error("Could not persist snippets: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private nonisolated static func readFolders(from fileURL: URL) async throws -> [SnippetSummary]? {
+        try await Task.detached(priority: .userInitiated) {
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                return nil
+            }
+
+            let data = try Data(contentsOf: fileURL)
+            return try JSONDecoder().decode([SnippetSummary].self, from: data)
+        }.value
     }
 }

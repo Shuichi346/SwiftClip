@@ -6,7 +6,10 @@ struct ExtensionsTab: View {
 
     var body: some View {
         Form {
-            KeyboardShortcuts.Recorder(L10n.string("prefs.extensions.plainTextPaste"), name: .plainTextPaste)
+            SwiftClipShortcutRecorder(
+                title: L10n.string("prefs.extensions.plainTextPaste"),
+                name: .plainTextPaste
+            )
         }
         .formStyle(.grouped)
         .padding(20)

@@ -62,6 +62,8 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - Build standalone shortcut popups through `StandalonePopupMenuBuilder` and present them with `NSMenu.popUp(positioning:at:in:)` using `NSEvent.mouseLocation`.
 - Preserve the standalone popup structure shown in the user reference: History header, history range submenus, Snippets header, snippet folder submenus, then action items.
 - Keep keyboard equivalents out of the standalone popup unless intentionally accepting AppKit's reserved shortcut-column width. The menu-bar menu may still show shortcuts such as `⌘Q`.
+- Keep fixed and folder/snippet shortcut handlers owned by `ShortcutCoordinator`. Dynamic shortcut names must remain dot-free (`folder-<UUID>` and `snippet-<UUID>`); preserve legacy dotted-name migration.
+- Clear folder/snippet shortcut assignments only after the JSON deletion is durable. Disabled entities keep their assignments but must not keep active handlers.
 
 ## Snippet Editing
 
@@ -74,13 +76,17 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 
 - Preserve the separation between JSON metadata and blob files. Do not inline large binary payloads into history JSON.
 - Route asynchronous JSON metadata writes through `JSONPersistenceQueue` or another ordered per-store writer. Do not use independent detached write tasks that can persist older snapshots after newer ones.
+- Flush history, snippet, and preferences persistence before allowing application termination to finish.
+- Keep history captures tracked by generation so Clear History cancels pending blob work and stale completions delete their blobs instead of recreating metadata.
 - Keep self-capture suppression around app-initiated pasteboard writes, or selecting a menu item can duplicate it in history.
+- Suppress self-capture by the exact `NSPasteboard.changeCount`; do not replace it with a generic “next change” counter.
 - In `PasteEngine`, validate file URLs and read blob data before clearing `NSPasteboard.general`; only call pasteboard-write side effects after the pasteboard write API reports success.
 - For snippet attachments in `SwiftClip/Clipboard/PasteEngine.swift`, keep text and file attachments as separate `NSPasteboardWriting` items. Do not collapse mixed snippets into multiple representations of a single `NSPasteboardItem`.
 - Keep the two-step mixed snippet paste workaround driven by `PreferencesState.mixedSnippetPasteBundleIDs`, not by a hidden hard-coded browser list in `PasteEngine`.
 - App-list preferences should add bundle IDs through an `NSOpenPanel` application picker rather than asking users to type bundle identifiers manually.
 - Preserve deterministic tests for history, preferences, blob storage, and Clipy XML import/export when changing those areas.
 - SwiftData model types are present, but the current stores are file-backed for deterministic behavior. Do not silently migrate persistence without tests and a compatibility plan.
+- Before replace-import, create and validate a complete `.swiftclipbackup` package. Preserve IDs, enabled states, ordering, attachment files/URLs, and dynamic shortcuts; delete managed attachments only after the replacement JSON is durable.
 
 ## Notes
 

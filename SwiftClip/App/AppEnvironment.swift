@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 @MainActor
@@ -11,6 +12,7 @@ final class AppEnvironment: ObservableObject {
     var openPreferences: (() -> Void)?
     var openSnippetEditor: (() -> Void)?
     var openPermissions: (() -> Void)?
+    private var cancellables: Set<AnyCancellable> = []
 
     init() {
         do {
@@ -26,9 +28,25 @@ final class AppEnvironment: ObservableObject {
         pasteEngine = PasteEngine(preferences: preferences, blobStore: blobStore)
     }
 
-    func start() {
-        preferences.load()
-        snippets.load()
-        history.load()
+    func start() async {
+        await preferences.load()
+        async let snippetsLoad: Void = snippets.load()
+        async let historyLoad: Void = history.load()
+        _ = await (snippetsLoad, historyLoad)
+
+        preferences.$state
+            .map(\.historyLimit)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak history] limit in
+                history?.applyLimit(limit)
+            }
+            .store(in: &cancellables)
+    }
+
+    func flushPersistence() async {
+        await history.flushPersistence()
+        snippets.flushPersistence()
+        preferences.flushPersistence()
     }
 }

@@ -45,6 +45,13 @@ struct SnippetToolbar: ToolbarContent {
             .help(L10n.string("editor.toolbar.import"))
 
             Button {
+                restoreBackup()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .help(L10n.string("editor.toolbar.restoreBackup"))
+
+            Button {
                 exportXML()
             } label: {
                 Image(systemName: "square.and.arrow.up")
@@ -126,19 +133,24 @@ struct SnippetToolbar: ToolbarContent {
             return
         }
 
-        do {
-            let data = try Data(contentsOf: url)
-            let importedFolders = try ClipyXMLCodec.decode(data: data)
-            switch importMode() {
-            case .replace:
-                try environment.snippets.replaceAll(with: importedFolders)
-            case .append:
-                environment.snippets.append(importedFolders)
-            case .cancel:
-                return
+        Task { @MainActor in
+            do {
+                let importedFolders = try await Task.detached(priority: .userInitiated) {
+                    let data = try Data(contentsOf: url)
+                    return try ClipyXMLCodec.decode(data: data)
+                }.value
+
+                switch importMode() {
+                case .replace:
+                    try await environment.snippets.replaceAll(with: importedFolders)
+                case .append:
+                    environment.snippets.append(importedFolders)
+                case .cancel:
+                    return
+                }
+            } catch {
+                showError(error)
             }
-        } catch {
-            showError(error)
         }
     }
 
@@ -152,11 +164,39 @@ struct SnippetToolbar: ToolbarContent {
             return
         }
 
-        do {
-            let data = try ClipyXMLCodec.encode(folders: environment.snippets.allFolders())
-            try data.write(to: url, options: .atomic)
-        } catch {
-            showError(error)
+        let folders = environment.snippets.allFolders()
+        Task { @MainActor in
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    let data = try ClipyXMLCodec.encode(folders: folders)
+                    try data.write(to: url, options: .atomic)
+                }.value
+            } catch {
+                showError(error)
+            }
+        }
+    }
+
+    private func restoreBackup() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.swiftClipSnippetBackup]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.directoryURL = FileLocations.backupDirectoryURL
+
+        guard panel.runModal() == .OK,
+              let url = panel.url,
+              confirmRestore() else {
+            return
+        }
+
+        Task { @MainActor in
+            do {
+                try await environment.snippets.restoreBackup(from: url)
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -185,6 +225,16 @@ struct SnippetToolbar: ToolbarContent {
         }
     }
 
+    private func confirmRestore() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L10n.string("editor.restore.title")
+        alert.informativeText = L10n.string("editor.restore.body")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.string("editor.restore.confirm"))
+        alert.addButton(withTitle: L10n.string("editor.import.cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     private func selectedFolderID() -> UUID? {
         switch selection {
         case .folder(let folderID):
@@ -200,4 +250,11 @@ struct SnippetToolbar: ToolbarContent {
         let alert = NSAlert(error: error)
         alert.runModal()
     }
+}
+
+private extension UTType {
+    static let swiftClipSnippetBackup = UTType(
+        exportedAs: "app.swiftclip.snippet-backup",
+        conformingTo: .package
+    )
 }

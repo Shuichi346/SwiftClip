@@ -2,6 +2,8 @@ import SwiftUI
 
 struct GeneralTab: View {
     @ObservedObject var preferences: PreferencesStore
+    var openPermissions: () -> Void
+    @State private var launchAtLoginError: String?
 
     var body: some View {
         Form {
@@ -10,7 +12,11 @@ struct GeneralTab: View {
                 isOn: Binding {
                     preferences.state.launchAtLogin
                 } set: { enabled in
-                    preferences.setLaunchAtLogin(enabled)
+                    do {
+                        try preferences.setLaunchAtLogin(enabled)
+                    } catch {
+                        launchAtLoginError = error.localizedDescription
+                    }
                 }
             )
 
@@ -30,8 +36,26 @@ struct GeneralTab: View {
                     )
                 )
             }
+
+            Button(L10n.string("prefs.general.openPermissions")) {
+                openPermissions()
+            }
         }
         .formStyle(.grouped)
         .padding(20)
+        .alert(
+            L10n.string("prefs.general.launchAtLoginError"),
+            isPresented: Binding {
+                launchAtLoginError != nil
+            } set: { isPresented in
+                if !isPresented {
+                    launchAtLoginError = nil
+                }
+            }
+        ) {
+            Button(L10n.string("alert.ok"), role: .cancel) {}
+        } message: {
+            Text(launchAtLoginError ?? "")
+        }
     }
 }

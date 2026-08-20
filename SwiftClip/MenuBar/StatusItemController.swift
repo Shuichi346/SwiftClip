@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 @MainActor
@@ -6,6 +7,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let environment: AppEnvironment
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
+    private var isMenuDirty = true
+    private var cancellables: Set<AnyCancellable> = []
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -22,11 +25,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.delegate = self
         statusItem.menu = menu
-        rebuildMenu()
+        observeMenuChanges()
+        rebuildMenuIfNeeded()
     }
 
     func showMenu() {
-        rebuildMenu()
         statusItem.button?.performClick(nil)
     }
 
@@ -34,13 +37,33 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let popupMenu = NSMenu()
         StandalonePopupMenuBuilder.populate(menu: popupMenu, environment: environment, target: self)
 
+        popUpAtCursor(popupMenu)
+    }
+
+    func showSnippetFolderPopupAtCursor(folderID: UUID) {
+        guard let folder = environment.snippets.folder(id: folderID),
+              folder.isEnabled else {
+            return
+        }
+
+        let popupMenu = NSMenu(title: folder.title)
+        SnippetsMenuSection.populateFolderPopup(
+            menu: popupMenu,
+            folder: folder,
+            environment: environment,
+            target: self
+        )
+        popUpAtCursor(popupMenu)
+    }
+
+    private func popUpAtCursor(_ popupMenu: NSMenu) {
         let cursorLocation = NSEvent.mouseLocation
         let popupLocation = NSPoint(x: cursorLocation.x + 6, y: cursorLocation.y - 6)
         popupMenu.popUp(positioning: nil, at: popupLocation, in: nil)
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        rebuildMenu()
+        rebuildMenuIfNeeded()
     }
 
     @objc func selectHistoryItem(_ sender: NSMenuItem) {
@@ -77,8 +100,31 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    private func rebuildMenu() {
+    private func observeMenuChanges() {
+        environment.history.$items
+            .sink { [weak self] _ in
+                self?.isMenuDirty = true
+            }
+            .store(in: &cancellables)
+        environment.snippets.$folders
+            .sink { [weak self] _ in
+                self?.isMenuDirty = true
+            }
+            .store(in: &cancellables)
+        environment.preferences.$state
+            .sink { [weak self] _ in
+                self?.isMenuDirty = true
+            }
+            .store(in: &cancellables)
+    }
+
+    private func rebuildMenuIfNeeded() {
+        guard isMenuDirty else {
+            return
+        }
+
         MainMenuBuilder.populate(menu: menu, environment: environment, target: self)
+        isMenuDirty = false
     }
 }
 

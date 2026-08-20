@@ -6,7 +6,7 @@ final class PasteboardWatcher {
     private let environment: AppEnvironment
     private var timer: Timer?
     private var lastChangeCount: Int
-    private var suppressedChanges = 0
+    private var selfCaptureFilter = PasteboardChangeFilter()
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -27,8 +27,8 @@ final class PasteboardWatcher {
         timer = nil
     }
 
-    func suppressNextChange() {
-        suppressedChanges += 1
+    func suppressChange(_ changeCount: Int) {
+        selfCaptureFilter.recordSelfWrite(changeCount: changeCount)
     }
 
     private func poll() {
@@ -39,8 +39,7 @@ final class PasteboardWatcher {
 
         lastChangeCount = pasteboard.changeCount
 
-        if suppressedChanges > 0 {
-            suppressedChanges -= 1
+        if selfCaptureFilter.shouldSuppress(observedChangeCount: lastChangeCount) {
             return
         }
 
@@ -57,55 +56,36 @@ final class PasteboardWatcher {
     }
 }
 
-private extension ClipboardCapture {
+struct PasteboardChangeFilter {
+    private var selfWriteChangeCounts: Set<Int> = []
+
+    mutating func recordSelfWrite(changeCount: Int) {
+        selfWriteChangeCounts.insert(changeCount)
+    }
+
+    mutating func shouldSuppress(observedChangeCount: Int) -> Bool {
+        let shouldSuppress = selfWriteChangeCounts.remove(observedChangeCount) != nil
+        selfWriteChangeCounts = selfWriteChangeCounts.filter { $0 > observedChangeCount }
+        return shouldSuppress
+    }
+}
+
+extension ClipboardCapture {
+    static let titlePreviewLimit = 120
+    static let inlineTextByteLimit = 64 * 1024
+
     static func make(from pasteboard: NSPasteboard, preferences: PreferencesState) -> ClipboardCapture? {
-        if preferences.formatFileURL,
-           let urls = pasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-           ) as? [NSURL],
-           !urls.isEmpty {
-            let values = urls.compactMap(\.absoluteString)
-            let title = values
-                .compactMap { URL(string: $0)?.lastPathComponent }
-                .joined(separator: ", ")
+        if preferences.formatRTFD,
+           let data = pasteboard.data(forType: .rtfd),
+           !data.isEmpty {
             return ClipboardCapture(
-                kind: .fileURL,
-                title: title.isEmpty ? L10n.string("history.files") : title,
+                kind: .rtfd,
+                title: L10n.string("history.rtfd"),
                 textValue: nil,
-                fileURLs: values,
-                data: nil,
-                byteCount: values.joined().utf8.count,
-                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.fileURL.rawValue
-            )
-        }
-
-        if preferences.formatURL,
-           let urlString = pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string),
-           URL(string: urlString) != nil,
-           urlString.contains("://") {
-            return ClipboardCapture(
-                kind: .url,
-                title: urlString,
-                textValue: urlString,
                 fileURLs: [],
-                data: nil,
-                byteCount: urlString.utf8.count,
-                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.URL.rawValue
-            )
-        }
-
-        if preferences.formatPlainText,
-           let string = pasteboard.string(forType: .string),
-           !string.isEmpty {
-            return ClipboardCapture(
-                kind: .plainText,
-                title: string,
-                textValue: string,
-                fileURLs: [],
-                data: nil,
-                byteCount: string.utf8.count,
-                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.string.rawValue
+                data: data,
+                byteCount: data.count,
+                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.rtfd.rawValue
             )
         }
 
@@ -120,20 +100,6 @@ private extension ClipboardCapture {
                 data: data,
                 byteCount: data.count,
                 pasteboardTypeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue
-            )
-        }
-
-        if preferences.formatRTFD,
-           let data = pasteboard.data(forType: .rtfd),
-           !data.isEmpty {
-            return ClipboardCapture(
-                kind: .rtfd,
-                title: L10n.string("history.rtfd"),
-                textValue: nil,
-                fileURLs: [],
-                data: data,
-                byteCount: data.count,
-                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.rtfd.rawValue
             )
         }
 
@@ -165,6 +131,67 @@ private extension ClipboardCapture {
             )
         }
 
+        if preferences.formatFileURL,
+           let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+           ) as? [NSURL],
+           !urls.isEmpty {
+            let values = urls.compactMap(\.absoluteString)
+            let title = values
+                .compactMap { URL(string: $0)?.lastPathComponent }
+                .joined(separator: ", ")
+            return ClipboardCapture(
+                kind: .fileURL,
+                title: (title.isEmpty ? L10n.string("history.files") : title)
+                    .swiftClipTruncated(to: titlePreviewLimit),
+                textValue: nil,
+                fileURLs: values,
+                data: nil,
+                byteCount: values.joined().utf8.count,
+                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.fileURL.rawValue
+            )
+        }
+
+        if preferences.formatURL,
+           let urlString = pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string),
+           URL(string: urlString) != nil,
+           urlString.contains("://") {
+            return textCapture(
+                kind: .url,
+                string: urlString,
+                pasteboardType: .URL
+            )
+        }
+
+        if preferences.formatPlainText,
+           let string = pasteboard.string(forType: .string),
+           !string.isEmpty {
+            return textCapture(
+                kind: .plainText,
+                string: string,
+                pasteboardType: .string
+            )
+        }
+
         return nil
+    }
+
+    private static func textCapture(
+        kind: ClipboardItemKind,
+        string: String,
+        pasteboardType: NSPasteboard.PasteboardType
+    ) -> ClipboardCapture {
+        let data = Data(string.utf8)
+        let storesPayloadInBlob = data.count > inlineTextByteLimit
+        return ClipboardCapture(
+            kind: kind,
+            title: string.swiftClipTruncated(to: titlePreviewLimit),
+            textValue: storesPayloadInBlob ? nil : string,
+            fileURLs: [],
+            data: storesPayloadInBlob ? data : nil,
+            byteCount: data.count,
+            pasteboardTypeIdentifier: pasteboardType.rawValue
+        )
     }
 }

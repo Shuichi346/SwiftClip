@@ -20,7 +20,7 @@ final class SnippetAttachmentTests: XCTestCase {
     }
 
     @MainActor
-    func testLoadTreatsMissingAttachmentURLsAsEmpty() throws {
+    func testLoadTreatsMissingAttachmentURLsAsEmpty() async throws {
         let snippetsURL = temporaryDirectory.appendingPathComponent("Snippets.json", isDirectory: false)
         let json = """
         [
@@ -44,7 +44,7 @@ final class SnippetAttachmentTests: XCTestCase {
         try Data(json.utf8).write(to: snippetsURL, options: .atomic)
 
         let store = SnippetStore(fileURL: snippetsURL)
-        store.load()
+        await store.load()
 
         let folder = try XCTUnwrap(store.allFolders().first)
         let snippet = try XCTUnwrap(folder.snippets.first)
@@ -71,7 +71,7 @@ final class SnippetAttachmentTests: XCTestCase {
     }
 
     @MainActor
-    func testRemovingAttachmentDeletesManagedFileOnlyAfterLastReference() throws {
+    func testRemovingAttachmentDeletesManagedFileOnlyAfterLastReference() async throws {
         let store = makeStore()
         let folderID = store.addFolder(title: "Folder")
         let firstSnippetID = try XCTUnwrap(store.addSnippet(to: folderID, title: "First"))
@@ -79,7 +79,7 @@ final class SnippetAttachmentTests: XCTestCase {
         let sourceURL = temporaryDirectory.appendingPathComponent("image.png", isDirectory: false)
         try Data("png".utf8).write(to: sourceURL, options: .atomic)
 
-        let managedAttachmentURLs = try store.addAttachmentFiles(
+        let managedAttachmentURLs = try await store.addAttachmentFiles(
             [sourceURL],
             folderID: folderID,
             snippetID: firstSnippetID
@@ -93,6 +93,8 @@ final class SnippetAttachmentTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: managedFileURL.path))
 
         store.removeAttachmentURL(at: 0, folderID: folderID, snippetID: secondSnippetID)
+        store.flushPersistence()
+        try await Task.sleep(for: .milliseconds(50))
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: managedFileURL.path))
     }
@@ -147,7 +149,7 @@ final class SnippetAttachmentTests: XCTestCase {
             blobStore: BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true))
         )
         var writeCount = 0
-        engine.onPasteboardWrite = {
+        engine.onPasteboardWrite = { _ in
             writeCount += 1
         }
 
@@ -165,6 +167,70 @@ final class SnippetAttachmentTests: XCTestCase {
 
         XCTAssertEqual(writeCount, 0)
         XCTAssertEqual(pasteboard.string(forType: .string), "existing clipboard")
+    }
+
+    @MainActor
+    func testPasteEmptySnippetPreservesExistingClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("existing clipboard", forType: .string)
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+        }
+        let engine = PasteEngine(
+            preferences: preferences,
+            blobStore: BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true))
+        )
+        var writeCount = 0
+        engine.onPasteboardWrite = { _ in
+            writeCount += 1
+        }
+
+        engine.paste(snippet: SnippetLeaf(title: "Empty", content: ""))
+
+        XCTAssertEqual(writeCount, 0)
+        XCTAssertEqual(pasteboard.string(forType: .string), "existing clipboard")
+    }
+
+    @MainActor
+    func testPlainTextPasteConvertsRichHistoryBlob() async throws {
+        let attributedString = NSAttributedString(string: "Styled clipboard text")
+        let rtfData = try attributedString.data(
+            from: NSRange(location: 0, length: attributedString.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+        let blobStore = BlobStore(
+            directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true)
+        )
+        let reference = try await blobStore.write(
+            data: rtfData,
+            fileExtension: "rtf",
+            pasteboardTypeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue
+        )
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+        }
+        let engine = PasteEngine(preferences: preferences, blobStore: blobStore)
+        let writeExpectation = expectation(description: "Plain-text pasteboard write")
+        engine.onPasteboardWrite = { _ in
+            writeExpectation.fulfill()
+        }
+
+        engine.paste(
+            item: ClipboardItem(
+                kind: .richText,
+                title: "Rich text",
+                blobFilename: reference.filename,
+                byteCount: rtfData.count,
+                pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
+            ),
+            asPlainText: true
+        )
+
+        await fulfillment(of: [writeExpectation], timeout: 1)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Styled clipboard text")
     }
 
     @MainActor

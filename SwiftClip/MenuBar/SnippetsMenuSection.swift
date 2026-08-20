@@ -12,6 +12,27 @@ enum SnippetsMenuSection {
     }
 
     @MainActor
+    static func populateFolderPopup(
+        menu: NSMenu,
+        folder: SnippetSummary,
+        environment: AppEnvironment,
+        target: StatusItemController
+    ) {
+        menu.removeAllItems()
+
+        let headerItem = NSMenuItem(title: folder.title, action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+
+        addSnippetItems(
+            folder: folder,
+            to: menu,
+            environment: environment,
+            target: target
+        )
+    }
+
+    @MainActor
     private static func addFlatSnippetSection(
         to menu: NSMenu,
         environment: AppEnvironment,
@@ -42,12 +63,32 @@ enum SnippetsMenuSection {
     ) -> NSMenuItem {
         let folderMenu = NSMenu(title: folder.title)
 
-        if folder.snippets.isEmpty {
+        addSnippetItems(
+            folder: folder,
+            to: folderMenu,
+            environment: environment,
+            target: target
+        )
+
+        let folderItem = NSMenuItem(title: folder.title, action: nil, keyEquivalent: "")
+        folderItem.submenu = folderMenu
+        return folderItem
+    }
+
+    @MainActor
+    private static func addSnippetItems(
+        folder: SnippetSummary,
+        to folderMenu: NSMenu,
+        environment: AppEnvironment,
+        target: StatusItemController
+    ) {
+        let snippets = folder.snippets.filter(\.isEnabled)
+        if snippets.isEmpty {
             let emptyItem = NSMenuItem(title: L10n.string("snippets.folderEmpty"), action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             folderMenu.addItem(emptyItem)
         } else {
-            for snippet in folder.snippets {
+            for snippet in snippets {
                 let item = NSMenuItem(
                     title: snippet.title.swiftClipTruncated(to: environment.preferences.state.menuTitleCharacterLimit),
                     action: #selector(StatusItemController.selectSnippetItem(_:)),
@@ -59,16 +100,15 @@ enum SnippetsMenuSection {
                 folderMenu.addItem(item)
             }
         }
-
-        let folderItem = NSMenuItem(title: folder.title, action: nil, keyEquivalent: "")
-        folderItem.submenu = folderMenu
-        return folderItem
     }
 
-    private static func tooltip(for snippet: SnippetLeaf) -> String? {
+    static func tooltip(for snippet: SnippetLeaf) -> String? {
+        let contentLimit = 240
+        let attachmentNameLimit = 60
+        let attachmentCountLimit = 5
         var parts: [String] = []
         if !snippet.content.isEmpty {
-            parts.append(snippet.content)
+            parts.append(snippet.content.swiftClipTruncated(to: contentLimit))
         }
 
         let attachmentNames = snippet.attachmentURLs
@@ -77,7 +117,12 @@ enum SnippetsMenuSection {
             .filter { !$0.isEmpty }
 
         if !attachmentNames.isEmpty {
-            parts.append(attachmentNames.joined(separator: ", "))
+            let visibleNames = attachmentNames.prefix(attachmentCountLimit).map {
+                $0.swiftClipTruncated(to: attachmentNameLimit)
+            }
+            let hiddenCount = attachmentNames.count - visibleNames.count
+            let suffix = hiddenCount > 0 ? ", +\(hiddenCount)" : ""
+            parts.append(visibleNames.joined(separator: ", ") + suffix)
         }
 
         return parts.isEmpty ? nil : parts.joined(separator: "\n")

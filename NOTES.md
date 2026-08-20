@@ -15,6 +15,23 @@ Last updated: 2026-08-20
 
 ## Problems Encountered And Fixes
 
+### Review remediation for clipboard, shortcuts, and snippet backup
+
+The 2026-08-20 review found data-loss races, inactive shortcut recorders, lossy replace-import backups, clipboard fidelity problems, and synchronous full-state work on main-actor paths.
+
+Solution:
+- Added a versioned `.swiftclipbackup` package and transactional replace/restore flow. Backups preserve folder/snippet IDs, enabled flags, ordering, managed attachment contents, attachment URLs, and dynamic shortcut assignments; replacement does not begin if backup creation fails.
+- Added generation-based cancellation for pending history captures, exact pasteboard `changeCount` suppression, rich-first capture priority, rich-to-plain conversion, bounded previews with large text in blobs, immediate limit enforcement, and strict blob filename/symlink validation.
+- Added `ShortcutCoordinator` event-stream handlers for fixed and dynamic shortcuts, legacy dotted-name migration, duplicate validation, and durable cleanup for deleted-entity shortcuts.
+- Added ordered quit-time persistence flushing, debounce/coalescing for snippet text edits, durability-before-attachment/blob deletion, off-main startup/XML/attachment work, structure-aware outline refreshes, dirty menu caching, and bounded tooltips.
+- Reconciled Launch at Login with `SMAppService` state and retained the prior preference when registration changes fail. Preferences can reopen the Paste Permission window.
+
+Verification:
+- The repo-approved Debug build succeeded with `KeyboardShortcuts` 3.0.1.
+- All 41 XCTest cases passed, including deterministic coverage for the clear-history race and complete backup/restore.
+- `git diff --check` and `plutil -lint SwiftClip/Resources/Info.plist` passed.
+- `./script/build_and_run.sh --verify` succeeded, and `pgrep -x SwiftClip` confirmed the launched process. Manual Accessibility paste injection remains pending.
+
 ### KeyboardShortcuts 3.0.1 dependency upgrade
 
 The Xcode package requirement was raised from 2.4.0 to 3.0.1. SwiftClip does not use the 3.0 breaking `default:` or `defaultShortcut` APIs, so no app-source migration was required. Package resolution, Debug and Release builds, and the full XCTest suite succeeded with 3.0.1 on Swift 6.3.3.
