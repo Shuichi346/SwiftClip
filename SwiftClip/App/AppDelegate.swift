@@ -1,5 +1,4 @@
 import AppKit
-import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
@@ -8,9 +7,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItemController: StatusItemController?
     private var pasteboardWatcher: PasteboardWatcher?
+    private var shortcutCoordinator: ShortcutCoordinator?
     private var preferencesWindow: NSWindow?
     private var snippetEditorWindow: NSWindow?
     private var permissionsWindow: NSWindow?
+    private var startupTask: Task<Void, Never>?
+    private var terminationTask: Task<Void, Never>?
+    private var isTerminationPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -25,46 +28,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showPermissionsWindow()
         }
 
-        environment.start()
-
-        let controller = StatusItemController(environment: environment)
-        statusItemController = controller
-
-        let watcher = PasteboardWatcher(environment: environment)
-        pasteboardWatcher = watcher
-        environment.pasteEngine.onPasteboardWrite = { [weak watcher] in
-            watcher?.suppressNextChange()
-        }
-        watcher.start()
-
-        KeyboardShortcuts.onKeyUp(for: .mainMenu) { [weak self] in
-            Task { @MainActor in
-                self?.statusItemController?.showStandalonePopupAtCursor()
-            }
-        }
-        KeyboardShortcuts.onKeyUp(for: .clearHistory) { [weak self] in
-            Task { @MainActor in
-                self?.environment.history.clearAll()
-            }
-        }
-        KeyboardShortcuts.onKeyUp(for: .snippetEditor) { [weak self] in
-            Task { @MainActor in
-                self?.showSnippetEditorWindow()
-            }
-        }
-        KeyboardShortcuts.onKeyUp(for: .preferences) { [weak self] in
-            Task { @MainActor in
-                self?.showPreferencesWindow()
-            }
-        }
-
         if !PermissionsProbe.isAccessibilityTrusted(prompt: false) {
             showPermissionsWindow()
+        }
+
+        startupTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            await environment.start()
+            guard !isTerminationPending else {
+                return
+            }
+            finishLaunchingServices()
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !isTerminationPending else {
+            return .terminateLater
+        }
+
+        isTerminationPending = true
+        pasteboardWatcher?.stop()
+        shortcutCoordinator?.stop()
+        let startupTask = startupTask
+
+        terminationTask = Task { [weak self] in
+            guard let self else {
+                NSApp.reply(toApplicationShouldTerminate: true)
+                return
+            }
+
+            await startupTask?.value
+            await environment.flushPersistence()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    private func finishLaunchingServices() {
+        let controller = StatusItemController(environment: environment)
+        statusItemController = controller
+
+        let watcher = PasteboardWatcher(environment: environment)
+        pasteboardWatcher = watcher
+        environment.pasteEngine.onPasteboardWrite = { [weak watcher] changeCount in
+            watcher?.suppressChange(changeCount)
+        }
+        watcher.start()
+
+        let shortcutCoordinator = ShortcutCoordinator(
+            environment: environment,
+            statusItemController: controller
+        )
+        self.shortcutCoordinator = shortcutCoordinator
+        shortcutCoordinator.start()
     }
 
     private func showPreferencesWindow() {

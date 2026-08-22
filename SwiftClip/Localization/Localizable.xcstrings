@@ -361,6 +361,57 @@
         }
       }
     },
+    "editor.restore.body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore this complete SwiftClip snippet backup? A safety backup of the current library will be created first."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このSwiftClipスニペットの完全バックアップを復元しますか？現在のライブラリは先に安全バックアップされます。"
+          }
+        }
+      }
+    },
+    "editor.restore.confirm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元"
+          }
+        }
+      }
+    },
+    "editor.restore.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Snippet Backup"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットバックアップを復元"
+          }
+        }
+      }
+    },
     "editor.shortcut" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -510,6 +561,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "インポート"
+          }
+        }
+      }
+    },
+    "editor.toolbar.restoreBackup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Backup"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップを復元"
           }
         }
       }
@@ -990,6 +1058,57 @@
         }
       }
     },
+    "prefs.apps.choose" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose App..."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリを選択..."
+          }
+        }
+      }
+    },
+    "prefs.apps.panelMessage" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose one or more applications."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 つ以上のアプリケーションを選択してください。"
+          }
+        }
+      }
+    },
+    "prefs.apps.panelPrompt" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択"
+          }
+        }
+      }
+    },
     "prefs.excluded.add" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1105,57 +1224,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレーンテキストペーストトリガー"
-          }
-        }
-      }
-    },
-    "prefs.apps.choose" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose App..."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アプリを選択..."
-          }
-        }
-      }
-    },
-    "prefs.apps.panelMessage" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose one or more applications."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 つ以上のアプリケーションを選択してください。"
-          }
-        }
-      }
-    },
-    "prefs.apps.panelPrompt" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択"
           }
         }
       }
@@ -1313,6 +1381,40 @@
         }
       }
     },
+    "prefs.general.launchAtLoginError" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Update Launch at Login"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログイン時の起動設定を更新できませんでした"
+          }
+        }
+      }
+    },
+    "prefs.general.openPermissions" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Paste Permission…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペースト権限を開く…"
+          }
+        }
+      }
+    },
     "prefs.general.pasteAfterSelection" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1326,6 +1428,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "メニュー項目選択後に Command-V を入力"
+          }
+        }
+      }
+    },
+    "prefs.menu.showNumbers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show numbers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "番号を表示"
+          }
+        }
+      }
+    },
+    "prefs.menu.startAtZero" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start numbering at zero"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 から番号を開始"
+          }
+        }
+      }
+    },
+    "prefs.menu.titleLimit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu title limit: %d characters"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニュータイトル上限: %d 文字"
           }
         }
       }
@@ -1428,57 +1581,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "混在スニペットのペースト対象アプリ"
-          }
-        }
-      }
-    },
-    "prefs.menu.showNumbers" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show numbers"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "番号を表示"
-          }
-        }
-      }
-    },
-    "prefs.menu.startAtZero" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start numbering at zero"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 から番号を開始"
-          }
-        }
-      }
-    },
-    "prefs.menu.titleLimit" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menu title limit: %d characters"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "メニュータイトル上限: %d 文字"
           }
         }
       }
@@ -1632,6 +1734,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "履歴をクリア"
+          }
+        }
+      }
+    },
+    "shortcuts.conflict" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This shortcut is already assigned to “%@”."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このショートカットはすでに「%@」に割り当てられています。"
           }
         }
       }

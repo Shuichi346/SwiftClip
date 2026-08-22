@@ -64,7 +64,10 @@ struct SnippetDetailPane: View {
                 }
             )
 
-            KeyboardShortcuts.Recorder(L10n.string("editor.shortcut"), name: .folder(folder.id))
+            SwiftClipShortcutRecorder(
+                title: L10n.string("editor.shortcut"),
+                name: .folder(folder.id)
+            )
 
             Section(L10n.string("editor.snippetSharing")) {
                 Text("Coming Soon")
@@ -96,7 +99,10 @@ struct SnippetDetailPane: View {
                 }
             )
 
-            KeyboardShortcuts.Recorder(L10n.string("editor.shortcut"), name: .snippet(snippet.id))
+            SwiftClipShortcutRecorder(
+                title: L10n.string("editor.shortcut"),
+                name: .snippet(snippet.id)
+            )
 
             Section(L10n.string("editor.snippetContent")) {
                 AttachmentTextEditor(
@@ -223,18 +229,22 @@ struct SnippetDetailPane: View {
     }
 
     private func addAttachmentFiles(_ urls: [URL], folderID: UUID, snippetID: UUID) {
-        showLargeAttachmentWarningIfNeeded(for: urls)
+        Task { @MainActor in
+            let largeFiles = await Task.detached(priority: .userInitiated) {
+                SnippetAttachmentStore.largeFiles(in: urls)
+            }.value
+            showLargeAttachmentWarningIfNeeded(largeFiles)
 
-        do {
-            try snippets.addAttachmentFiles(urls, folderID: folderID, snippetID: snippetID)
-        } catch {
-            let alert = NSAlert(error: error)
-            alert.runModal()
+            do {
+                try await snippets.addAttachmentFiles(urls, folderID: folderID, snippetID: snippetID)
+            } catch {
+                let alert = NSAlert(error: error)
+                alert.runModal()
+            }
         }
     }
 
-    private func showLargeAttachmentWarningIfNeeded(for urls: [URL]) {
-        let largeFiles = SnippetAttachmentStore.largeFiles(in: urls)
+    private func showLargeAttachmentWarningIfNeeded(_ largeFiles: [SnippetAttachmentFileInfo]) {
         guard !largeFiles.isEmpty else {
             return
         }

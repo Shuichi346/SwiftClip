@@ -21,6 +21,36 @@ final class BlobStoreTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
     }
 
+    func testReadRejectsPathTraversal() async throws {
+        let store = BlobStore(directoryURL: try temporaryDirectory())
+
+        do {
+            _ = try await store.read(filename: "../History.json")
+            XCTFail("Expected traversal filename to be rejected")
+        } catch {
+            XCTAssertEqual(error as? SwiftClipError, .invalidBlobFilename("../History.json"))
+        }
+    }
+
+    func testReadRejectsSymbolicLinks() async throws {
+        let directory = try temporaryDirectory()
+        let targetURL = directory.appendingPathComponent("target.txt", isDirectory: false)
+        try Data("secret".utf8).write(to: targetURL, options: .atomic)
+        let filename = "C9B46EC3-E568-4377-8752-7FF1B85635BC.txt"
+        try FileManager.default.createSymbolicLink(
+            at: directory.appendingPathComponent(filename, isDirectory: false),
+            withDestinationURL: targetURL
+        )
+        let store = BlobStore(directoryURL: directory)
+
+        do {
+            _ = try await store.read(filename: filename)
+            XCTFail("Expected symbolic link to be rejected")
+        } catch {
+            XCTAssertEqual(error as? SwiftClipError, .invalidBlobFilename(filename))
+        }
+    }
+
     private func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

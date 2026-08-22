@@ -2,14 +2,18 @@ import SwiftUI
 
 struct PreferencesWindow: View {
     @ObservedObject private var preferences: PreferencesStore
+    private let openPermissions: () -> Void
 
     init(environment: AppEnvironment) {
         _preferences = ObservedObject(wrappedValue: environment.preferences)
+        openPermissions = {
+            environment.openPermissions?()
+        }
     }
 
     var body: some View {
         TabView {
-            GeneralTab(preferences: preferences)
+            GeneralTab(preferences: preferences, openPermissions: openPermissions)
                 .tabItem {
                     Label(L10n.string("prefs.tab.general"), systemImage: "gearshape")
                 }

@@ -4,6 +4,40 @@ import ServiceManagement
 import SwiftUI
 import SwiftData
 
+@MainActor
+protocol LaunchAtLoginControlling {
+    var isEnabled: Bool { get }
+    func setEnabled(_ enabled: Bool) throws
+}
+
+@MainActor
+struct SystemLaunchAtLoginController: LaunchAtLoginControlling {
+    var isEnabled: Bool {
+        switch SMAppService.mainApp.status {
+        case .enabled, .requiresApproval:
+            return true
+        case .notRegistered, .notFound:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            guard !isEnabled else {
+                return
+            }
+            try SMAppService.mainApp.register()
+        } else {
+            guard isEnabled else {
+                return
+            }
+            try SMAppService.mainApp.unregister()
+        }
+    }
+}
+
 struct PreferencesState: Codable, Equatable, Sendable {
     var launchAtLogin = false
     var pasteAfterSelection = true
@@ -106,25 +140,34 @@ final class PreferencesStore: ObservableObject {
     @Published private(set) var state = PreferencesState()
 
     private let fileURL: URL
+    private let launchAtLoginController: any LaunchAtLoginControlling
     private let persistenceQueue = JSONPersistenceQueue(label: "app.swiftclip.preferences.persistence")
 
-    init(fileURL: URL = FileLocations.preferencesURL) {
+    init(
+        fileURL: URL = FileLocations.preferencesURL,
+        launchAtLoginController: any LaunchAtLoginControlling = SystemLaunchAtLoginController()
+    ) {
         self.fileURL = fileURL
+        self.launchAtLoginController = launchAtLoginController
     }
 
-    func load() {
+    func load() async {
         do {
-            try FileLocations.ensureBaseDirectories()
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            guard var decoded = try await Self.readState(from: fileURL) else {
+                state.launchAtLogin = launchAtLoginController.isEnabled
                 persist()
                 return
             }
 
-            let data = try Data(contentsOf: fileURL)
-            var decoded = try JSONDecoder().decode(PreferencesState.self, from: data)
             decoded.historyLimit = clampedHistoryLimit(decoded.historyLimit)
             decoded.menuTitleCharacterLimit = max(5, decoded.menuTitleCharacterLimit)
+            let registeredAtLogin = launchAtLoginController.isEnabled
+            let needsPersistence = decoded.launchAtLogin != registeredAtLogin
+            decoded.launchAtLogin = registeredAtLogin
             state = decoded
+            if needsPersistence {
+                persist()
+            }
         } catch {
             AppLog.preferences.error("Could not load preferences: \(error.localizedDescription, privacy: .public)")
         }
@@ -149,20 +192,20 @@ final class PreferencesStore: ObservableObject {
         persist()
     }
 
-    func setLaunchAtLogin(_ enabled: Bool) {
-        update { preferences in
-            preferences.launchAtLogin = enabled
-        }
-
+    func setLaunchAtLogin(_ enabled: Bool) throws {
         do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
+            try launchAtLoginController.setEnabled(enabled)
+            update { preferences in
+                preferences.launchAtLogin = enabled
             }
         } catch {
             AppLog.preferences.error("Could not update launch-at-login registration: \(error.localizedDescription, privacy: .public)")
+            throw error
         }
+    }
+
+    func flushPersistence() {
+        persistenceQueue.flush()
     }
 
     func addExcludedBundleID(_ bundleID: String) {
@@ -229,5 +272,16 @@ final class PreferencesStore: ObservableObject {
         persistenceQueue.write(state, to: fileURL) { error in
             AppLog.preferences.error("Could not persist preferences: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private nonisolated static func readState(from fileURL: URL) async throws -> PreferencesState? {
+        try await Task.detached(priority: .userInitiated) {
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                return nil
+            }
+
+            let data = try Data(contentsOf: fileURL)
+            return try JSONDecoder().decode(PreferencesState.self, from: data)
+        }.value
     }
 }

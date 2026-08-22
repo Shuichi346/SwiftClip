@@ -28,7 +28,7 @@ final class PreferencesStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
 
         let restored = PreferencesStore(fileURL: url)
-        restored.load()
+        await restored.load()
 
         XCTAssertEqual(restored.state.historyLimit, 12)
         XCTAssertTrue(restored.state.formatImage)
@@ -36,7 +36,7 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(restored.state.mixedSnippetPasteBundleIDs, ["com.example.Chat"])
     }
 
-    func testLoadLegacyPreferencesLeavesMixedSnippetPasteAppsEmpty() throws {
+    func testLoadLegacyPreferencesLeavesMixedSnippetPasteAppsEmpty() async throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("json")
@@ -52,7 +52,7 @@ final class PreferencesStoreTests: XCTestCase {
         try Data(json.utf8).write(to: url, options: .atomic)
 
         let store = PreferencesStore(fileURL: url)
-        store.load()
+        await store.load()
 
         XCTAssertEqual(store.state.historyLimit, 8)
         XCTAssertTrue(store.state.formatImage)
@@ -63,7 +63,7 @@ final class PreferencesStoreTests: XCTestCase {
         )
     }
 
-    func testLoadLegacyBrowserDefaultsLeavesMixedSnippetPasteAppsEmpty() throws {
+    func testLoadLegacyBrowserDefaultsLeavesMixedSnippetPasteAppsEmpty() async throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("json")
@@ -83,7 +83,7 @@ final class PreferencesStoreTests: XCTestCase {
         try Data(json.utf8).write(to: url, options: .atomic)
 
         let store = PreferencesStore(fileURL: url)
-        store.load()
+        await store.load()
 
         XCTAssertEqual(store.state.mixedSnippetPasteBundleIDs, [])
     }
@@ -109,5 +109,46 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.state.mixedSnippetPasteBundleIDs, ["com.example.Editor"])
         XCTAssertFalse(store.shouldUseTwoStepMixedSnippetPaste(bundleID: "com.example.Chat"))
         XCTAssertFalse(store.shouldUseTwoStepMixedSnippetPaste(bundleID: nil))
+    }
+
+    func testLaunchAtLoginFailureDoesNotChangeOrPersistPreference() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        try JSONEncoder().encode(PreferencesState()).write(to: url, options: .atomic)
+        let controller = FailingLaunchAtLoginController(isEnabled: false)
+        let store = PreferencesStore(
+            fileURL: url,
+            launchAtLoginController: controller
+        )
+        await store.load()
+
+        XCTAssertThrowsError(try store.setLaunchAtLogin(true))
+        store.flushPersistence()
+
+        XCTAssertFalse(store.state.launchAtLogin)
+        XCTAssertFalse(controller.isEnabled)
+        let persisted = try JSONDecoder().decode(
+            PreferencesState.self,
+            from: Data(contentsOf: url)
+        )
+        XCTAssertFalse(persisted.launchAtLogin)
+    }
+}
+
+@MainActor
+private final class FailingLaunchAtLoginController: LaunchAtLoginControlling {
+    var isEnabled: Bool
+
+    init(isEnabled: Bool) {
+        self.isEnabled = isEnabled
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        throw TestError.registrationFailed
+    }
+
+    private enum TestError: Error {
+        case registrationFailed
     }
 }

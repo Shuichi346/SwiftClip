@@ -87,7 +87,7 @@ final class SnippetStoreReorderingTests: XCTestCase {
     }
 
     @MainActor
-    func testLoadNormalizesFolderAndSnippetSortIndexes() throws {
+    func testLoadNormalizesFolderAndSnippetSortIndexes() async throws {
         let snippetsURL = temporaryDirectory.appendingPathComponent("Snippets.json", isDirectory: false)
         let firstFolderID = UUID()
         let secondFolderID = UUID()
@@ -131,7 +131,7 @@ final class SnippetStoreReorderingTests: XCTestCase {
         try Data(json.utf8).write(to: snippetsURL, options: .atomic)
 
         let store = SnippetStore(fileURL: snippetsURL)
-        store.load()
+        await store.load()
 
         let folders = store.allFolders()
         XCTAssertEqual(folders.map(\.id), [firstFolderID, secondFolderID])

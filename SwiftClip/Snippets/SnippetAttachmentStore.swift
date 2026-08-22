@@ -1,14 +1,14 @@
 import Foundation
 
-struct SnippetAttachmentFileInfo: Equatable {
+struct SnippetAttachmentFileInfo: Equatable, Sendable {
     let url: URL
     let byteCount: Int64
 }
 
-final class SnippetAttachmentStore {
+actor SnippetAttachmentStore {
     static let largeFileWarningThresholdBytes: Int64 = 50 * 1024 * 1024
 
-    private let directoryURL: URL
+    nonisolated let directoryURL: URL
 
     init(directoryURL: URL) {
         self.directoryURL = directoryURL.standardizedFileURL
@@ -46,7 +46,7 @@ final class SnippetAttachmentStore {
         }
     }
 
-    func isManagedFileURL(_ url: URL) -> Bool {
+    nonisolated func isManagedFileURL(_ url: URL) -> Bool {
         let attachmentPath = url.standardizedFileURL.path
         let directoryPath = directoryURL.standardizedFileURL.path
         return attachmentPath == directoryPath || attachmentPath.hasPrefix(directoryPath + "/")

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Replaced the lossy pre-import XML backup with a restorable `.swiftclipbackup` package that preserves snippet IDs, enabled states, attachments, ordering, and folder/snippet shortcuts; added a Restore Backup action to the snippet editor.
+- Activated folder, snippet, and plain-text-paste shortcuts, migrated legacy dotted dynamic shortcut names, prevented duplicate assignments, and cleaned up deleted-entity shortcuts after durable persistence.
+- Fixed clipboard-history races and fidelity issues: Clear History now cancels in-flight blob captures, rich formats win over plain representations, exact pasteboard changes are suppressed, and rich history can be pasted as plain text.
+- Prevented empty snippets and invalid history files from clearing the clipboard, applied reduced history limits immediately, and rejected unsafe blob filenames and symbolic links.
+- Improved persistence and responsiveness with quit-time flushing, durability-before-file-deletion, coalesced snippet text writes, off-main JSON/XML/attachment I/O, bounded large-text previews, cached menus, and bounded snippet tooltips.
+- Added a Preferences route to reopen Paste Permission and kept Launch at Login state unchanged when Service Management rejects an update.
+- Updated the `KeyboardShortcuts` package requirement to version 3.0.1 or newer compatible release.
 - Bootstrapped the SwiftClip macOS menu-bar app.
 - Added local clipboard history, snippet management, preferences, shortcuts, localization, and build/run documentation.
 - Added the app icon as `SwiftClip/Resources/AppIcon.icns` and wired it through `CFBundleIconFile` for Xcode builds and packaged app bundles.

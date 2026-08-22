@@ -4,12 +4,12 @@ import Foundation
 
 @MainActor
 final class PasteEngine {
-    var onPasteboardWrite: (() -> Void)?
+    var onPasteboardWrite: ((Int) -> Void)?
 
     private let preferences: PreferencesStore
-    private let blobStore: BlobStore
+    private let blobStore: any BlobStoring
 
-    init(preferences: PreferencesStore, blobStore: BlobStore) {
+    init(preferences: PreferencesStore, blobStore: any BlobStoring) {
         self.preferences = preferences
         self.blobStore = blobStore
     }
@@ -37,16 +37,20 @@ final class PasteEngine {
             return
         }
 
+        let objects = pasteboardObjects(for: snippet)
+        guard !objects.isEmpty else {
+            return
+        }
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        let objects = pasteboardObjects(for: snippet)
-        let didWrite = !objects.isEmpty && pasteboard.writeObjects(objects)
+        let didWrite = pasteboard.writeObjects(objects)
 
         guard didWrite else {
             return
         }
 
-        onPasteboardWrite?()
+        onPasteboardWrite?(pasteboard.changeCount)
 
         if preferences.state.pasteAfterSelection {
             synthesizeCommandV()
@@ -54,19 +58,19 @@ final class PasteEngine {
     }
 
     private func write(item: ClipboardItem, asPlainText: Bool) async -> Bool {
-        if asPlainText, let text = item.textValue {
+        if asPlainText {
+            guard let text = await plainText(for: item) else {
+                return false
+            }
             return writeText(text, forType: .string)
-        }
-
-        if let text = item.textValue {
-            let type = NSPasteboard.PasteboardType(item.pasteboardTypeIdentifier ?? item.kind.fallbackPasteboardType.rawValue)
-            return writeText(text, forType: type)
         }
 
         if !item.fileURLs.isEmpty {
             let urls = item.fileURLs
                 .compactMap(URL.init(string:))
-                .filter(\.isFileURL)
+                .filter { url in
+                    url.isFileURL && FileManager.default.fileExists(atPath: url.path)
+                }
             guard !urls.isEmpty else {
                 return false
             }
@@ -76,20 +80,25 @@ final class PasteEngine {
             return completePasteboardWrite(pasteboard.writeObjects(urls as [NSURL]))
         }
 
-        guard let blobFilename = item.blobFilename else {
-            return false
+        if let blobFilename = item.blobFilename {
+            do {
+                let data = try await blobStore.read(filename: blobFilename)
+                let type = NSPasteboard.PasteboardType(item.pasteboardTypeIdentifier ?? item.kind.fallbackPasteboardType.rawValue)
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                return completePasteboardWrite(pasteboard.setData(data, forType: type))
+            } catch {
+                AppLog.clipboard.error("Could not paste history item: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
         }
 
-        do {
-            let data = try await blobStore.read(filename: blobFilename)
+        if let text = item.textValue {
             let type = NSPasteboard.PasteboardType(item.pasteboardTypeIdentifier ?? item.kind.fallbackPasteboardType.rawValue)
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            return completePasteboardWrite(pasteboard.setData(data, forType: type))
-        } catch {
-            AppLog.clipboard.error("Could not paste history item: \(error.localizedDescription, privacy: .public)")
-            return false
+            return writeText(text, forType: type)
         }
+
+        return false
     }
 
     private func writeText(_ text: String, forType type: NSPasteboard.PasteboardType) -> Bool {
@@ -106,7 +115,7 @@ final class PasteEngine {
 
     private func completePasteboardWrite(_ didWrite: Bool) -> Bool {
         if didWrite {
-            onPasteboardWrite?()
+            onPasteboardWrite?(NSPasteboard.general.changeCount)
         }
         return didWrite
     }
@@ -128,7 +137,9 @@ final class PasteEngine {
     private func pasteboardAttachmentObjects(for snippet: SnippetLeaf) -> [NSPasteboardWriting] {
         let urls = snippet.attachmentURLs
             .compactMap(URL.init(string:))
-            .filter { $0.isFileURL }
+            .filter { url in
+                url.isFileURL && FileManager.default.fileExists(atPath: url.path)
+            }
         return urls.map { $0 as NSURL }
     }
 
@@ -160,7 +171,7 @@ final class PasteEngine {
         let didWrite = pasteboard.writeObjects(objects)
 
         if didWrite {
-            onPasteboardWrite?()
+            onPasteboardWrite?(pasteboard.changeCount)
         }
 
         return didWrite
@@ -170,6 +181,46 @@ final class PasteEngine {
         !snippet.content.isEmpty
             && !pasteboardAttachmentObjects(for: snippet).isEmpty
             && preferences.shouldUseTwoStepMixedSnippetPaste(bundleID: targetBundleID)
+    }
+
+    private func plainText(for item: ClipboardItem) async -> String? {
+        if let textValue = item.textValue {
+            return textValue
+        }
+
+        if !item.fileURLs.isEmpty {
+            let values = item.fileURLs.compactMap { value -> String? in
+                guard let url = URL(string: value), url.isFileURL else {
+                    return nil
+                }
+                return url.path(percentEncoded: false)
+            }
+            return values.isEmpty ? nil : values.joined(separator: "\n")
+        }
+
+        guard let blobFilename = item.blobFilename else {
+            return nil
+        }
+
+        do {
+            let data = try await blobStore.read(filename: blobFilename)
+            switch item.kind {
+            case .plainText, .url:
+                return String(data: data, encoding: .utf8)
+            case .richText, .rtfd:
+                let documentType: NSAttributedString.DocumentType = item.kind == .rtfd ? .rtfd : .rtf
+                return try NSAttributedString(
+                    data: data,
+                    options: [.documentType: documentType],
+                    documentAttributes: nil
+                ).string
+            case .fileURL, .image, .pdf:
+                return nil
+            }
+        } catch {
+            AppLog.clipboard.error("Could not convert history item to plain text: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private func synthesizeCommandV() {
