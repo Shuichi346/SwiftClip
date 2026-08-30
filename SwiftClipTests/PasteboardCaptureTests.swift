@@ -33,6 +33,25 @@ final class PasteboardCaptureTests: XCTestCase {
         XCTAssertNil(rtfCapture.textValue)
     }
 
+    func testHTMLTakesPriorityOverURLAndPlainText() throws {
+        let pasteboard = NSPasteboard(name: .init("app.swiftclip.tests.\(UUID().uuidString)"))
+        let htmlData = Data("<html><body><strong>Styled</strong> text</body></html>".utf8)
+        pasteboard.clearContents()
+        pasteboard.setString("Styled text", forType: .string)
+        pasteboard.setString("https://example.com/url", forType: .URL)
+        pasteboard.setData(htmlData, forType: .html)
+
+        let capture = try XCTUnwrap(
+            ClipboardCapture.make(from: pasteboard, preferences: PreferencesState())
+        )
+
+        XCTAssertEqual(capture.kind, .html)
+        XCTAssertEqual(capture.title, "Styled text")
+        XCTAssertEqual(capture.data, htmlData)
+        XCTAssertNil(capture.textValue)
+        XCTAssertEqual(capture.pasteboardTypeIdentifier, NSPasteboard.PasteboardType.html.rawValue)
+    }
+
     func testRichTextTitleFallsBackToDecodedRTFText() throws {
         let pasteboard = NSPasteboard(name: .init("app.swiftclip.tests.\(UUID().uuidString)"))
         let rtfData = try richTextData("Decoded styled text", documentType: .rtf)
@@ -61,6 +80,21 @@ final class PasteboardCaptureTests: XCTestCase {
         XCTAssertEqual(capture.kind, .rtfd)
         XCTAssertEqual(capture.title, "Decoded RTFD text")
         XCTAssertEqual(capture.data, rtfdData)
+    }
+
+    func testRichTextTitleFallsBackToDecodedHTMLText() throws {
+        let pasteboard = NSPasteboard(name: .init("app.swiftclip.tests.\(UUID().uuidString)"))
+        let htmlData = Data("<html><body><strong>Decoded</strong> HTML text</body></html>".utf8)
+        pasteboard.clearContents()
+        pasteboard.setData(htmlData, forType: .html)
+
+        let capture = try XCTUnwrap(
+            ClipboardCapture.make(from: pasteboard, preferences: PreferencesState())
+        )
+
+        XCTAssertEqual(capture.kind, .html)
+        XCTAssertEqual(capture.title, "Decoded HTML text")
+        XCTAssertEqual(capture.data, htmlData)
     }
 
     func testInvalidRichTextUsesGenericFallbackTitle() throws {

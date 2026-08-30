@@ -113,6 +113,25 @@ extension ClipboardCapture {
             )
         }
 
+        if preferences.formatHTML,
+           let data = pasteboard.data(forType: .html),
+           !data.isEmpty {
+            return ClipboardCapture(
+                kind: .html,
+                title: richTextTitle(
+                    plainTextRepresentation: pasteboard.string(forType: .string),
+                    data: data,
+                    kind: .html,
+                    fallback: L10n.string("history.html")
+                ),
+                textValue: nil,
+                fileURLs: [],
+                data: data,
+                byteCount: data.count,
+                pasteboardTypeIdentifier: NSPasteboard.PasteboardType.html.rawValue
+            )
+        }
+
         if preferences.formatPDF,
            let data = pasteboard.data(forType: .pdf),
            !data.isEmpty {
@@ -194,6 +213,8 @@ extension ClipboardCapture {
             documentType = .rtf
         case .rtfd:
             documentType = .rtfd
+        case .html:
+            documentType = .html
         case .plainText, .fileURL, .url, .image, .pdf:
             return nil
         }

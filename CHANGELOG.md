@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Fixed rich text copied as HTML falling back to plain text when selected from history; HTML is now captured as a default-enabled format, preserved for normal paste, and converted only when Always Paste as Plain Text is enabled.
 - Changed rich-text history entries to show readable text previews while preserving their rich payload, and replaced the plain-text paste shortcut with an Always Paste as Plain Text toggle that also omits snippet attachments while enabled.
 - Replaced the lossy pre-import XML backup with a restorable `.swiftclipbackup` package that preserves snippet IDs, enabled states, attachments, ordering, and folder/snippet shortcuts; added a Restore Backup action to the snippet editor.
 - Activated folder and snippet shortcuts, migrated legacy dotted dynamic shortcut names, prevented duplicate assignments, and cleaned up deleted-entity shortcuts after durable persistence.

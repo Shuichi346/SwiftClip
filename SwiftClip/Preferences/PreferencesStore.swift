@@ -49,6 +49,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
     var formatPlainText = true
     var formatRTF = true
     var formatRTFD = true
+    var formatHTML = true
     var formatFileURL = true
     var formatURL = true
     var formatPDF = false
@@ -80,6 +81,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
         case formatPlainText
         case formatRTF
         case formatRTFD
+        case formatHTML
         case formatFileURL
         case formatURL
         case formatPDF
@@ -102,6 +104,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
         formatPlainText = try container.decodeIfPresent(Bool.self, forKey: .formatPlainText) ?? true
         formatRTF = try container.decodeIfPresent(Bool.self, forKey: .formatRTF) ?? true
         formatRTFD = try container.decodeIfPresent(Bool.self, forKey: .formatRTFD) ?? true
+        formatHTML = try container.decodeIfPresent(Bool.self, forKey: .formatHTML) ?? true
         formatFileURL = try container.decodeIfPresent(Bool.self, forKey: .formatFileURL) ?? true
         formatURL = try container.decodeIfPresent(Bool.self, forKey: .formatURL) ?? true
         formatPDF = try container.decodeIfPresent(Bool.self, forKey: .formatPDF) ?? false

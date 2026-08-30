@@ -15,6 +15,20 @@ Last updated: 2026-08-30
 
 ## Problems Encountered And Fixes
 
+### HTML rich-text history fell back to plain text
+
+Some clipboard sources expose styled text as `public.html` without an RTF or RTFD representation. SwiftClip did not capture HTML, so the same copy that pasted with formatting through Command-V was stored in history as its plain-string fallback.
+
+Solution:
+- Added HTML as a default-enabled clipboard format and preserved its original blob and pasteboard type for normal history paste.
+- Converted HTML to a string only at the paste boundary when Always Paste as Plain Text is enabled.
+- Added deterministic coverage for HTML capture priority, preview decoding, rich replay, plain-text conversion, and preference persistence.
+
+Verification:
+- The full XCTest suite passed after stopping the running SwiftClip instance to avoid the documented shortcut-storage conflict.
+- `./script/build_and_run.sh --verify` built and launched the updated app successfully.
+- Automated pasteboard tests verified the representation written in both modes; paste injection into a real third-party rich-text target remains a manual check.
+
 ### Rich-text history titles hid the copied content
 
 RTF and RTFD captures were stored with their original payload but displayed only a generic Rich Text or RTFD title, so the history menu did not identify copied text.

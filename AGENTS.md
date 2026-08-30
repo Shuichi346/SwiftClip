@@ -78,7 +78,7 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - Route asynchronous JSON metadata writes through `JSONPersistenceQueue` or another ordered per-store writer. Do not use independent detached write tasks that can persist older snapshots after newer ones.
 - Flush history, snippet, and preferences persistence before allowing application termination to finish.
 - Keep history captures tracked by generation so Clear History cancels pending blob work and stale completions delete their blobs instead of recreating metadata.
-- Keep RTF and RTFD history titles readable by preferring the pasteboard's plain-string representation and falling back to decoding the rich payload. Preserve the original rich blob and pasteboard type so normal paste remains rich.
+- Keep RTF, RTFD, and HTML history titles readable by preferring the pasteboard's plain-string representation and falling back to decoding the rich payload. Preserve the original rich blob and pasteboard type so normal paste remains rich.
 - Keep self-capture suppression around app-initiated pasteboard writes, or selecting a menu item can duplicate it in history.
 - Suppress self-capture by the exact `NSPasteboard.changeCount`; do not replace it with a generic “next change” counter.
 - In `PasteEngine`, validate file URLs and read blob data before clearing `NSPasteboard.general`; only call pasteboard-write side effects after the pasteboard write API reports success.
