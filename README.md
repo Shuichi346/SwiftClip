@@ -35,12 +35,13 @@ The snippet editor organizes folders and snippets in a sidebar, with editable sn
 
 ## Features
 
-- Menu-bar clipboard history with configurable item limits and title length.
+- Menu-bar clipboard history with configurable item limits, title length, and readable RTF/RTFD previews that retain the original rich content for normal pasting.
 - Reusable snippet folders and snippet items with per-item enablement.
 - Standalone History/Snippets popup opened from a configurable global shortcut.
 - Snippet editor with drag-and-drop folder ordering, snippet ordering, and cross-folder snippet moves.
 - Snippet attachments for local files, images, and videos, with optional prompt text.
 - Mixed snippet paste support that can paste text first and attachments second for selected apps.
+- An **Always Paste as Plain Text** preference that converts text-capable history items and pastes snippet text without attachments when enabled.
 - Clipy-compatible XML import and export for snippet migration.
 - Restorable `.swiftclipbackup` safety backups that preserve snippet IDs, enabled states, ordering, shortcuts, and managed attachment files before destructive library replacement or restore operations.
 - Format filtering for plain text, RTF, RTFD, file URLs, URLs, PDFs, and images.
@@ -103,7 +104,7 @@ xcodebuild -project SwiftClip.xcodeproj \
   test
 ```
 
-The 41 tests cover clipboard capture and paste fidelity, blob-path safety, history and preferences persistence, ordered JSON writes, Clipy XML import/export, complete snippet backup and restore, shortcut cleanup and migration, managed attachments, menu title formatting, and snippet reordering.
+The 47 tests cover clipboard capture and paste fidelity, readable rich-text history previews, the plain-text paste policy, blob-path safety, history and preferences persistence, ordered JSON writes, Clipy XML import/export, complete snippet backup and restore, shortcut cleanup and migration, managed attachments, menu title formatting, and snippet reordering.
 
 ## Usage
 
@@ -130,7 +131,7 @@ SwiftClip preferences are stored locally as JSON and are available from the menu
 - **Formats**: which pasteboard formats SwiftClip captures for history.
 - **Apps**: applications excluded from clipboard capture, plus **Mixed Snippet Paste Apps** for apps that should receive mixed snippets as two paste operations: text first, then attachments.
 - **Shortcuts**: global shortcuts for the main popup, snippet editor, preferences, and clear history actions.
-- **Extensions**: modifier-triggered plain-text paste behavior.
+- **Extensions**: **Always Paste as Plain Text**. When disabled, rich history and snippet attachments keep their original paste behavior. When enabled, text-capable history is written as plain text and snippets paste text without attachments. Image and PDF history items without a text representation are not pasted while this setting is enabled.
 
 The app lists store bundle identifiers internally, but the preferences UI resolves installed apps and displays names such as `Firefox.app` for clarity. If an app cannot be resolved, SwiftClip falls back to showing the bundle ID.
 
