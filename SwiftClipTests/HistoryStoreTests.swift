@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import SwiftClip
 
@@ -28,6 +29,50 @@ final class HistoryStoreTests: XCTestCase {
         await store.load()
 
         XCTAssertEqual(store.items, [item])
+    }
+
+    func testLoadReplacesGenericRichTextTitleWithBlobPreview() async throws {
+        let root = try temporaryDirectory()
+        let historyURL = root.appendingPathComponent("History.json", isDirectory: false)
+        let blobStore = BlobStore(directoryURL: root.appendingPathComponent("Blobs", isDirectory: true))
+        let attributedString = NSAttributedString(string: "Persisted styled text")
+        let rtfData = try attributedString.data(
+            from: NSRange(location: 0, length: attributedString.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+        let reference = try await blobStore.write(
+            data: rtfData,
+            fileExtension: "rtf",
+            pasteboardTypeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue
+        )
+        let item = ClipboardItem(
+            kind: .richText,
+            title: L10n.string("history.richText"),
+            blobFilename: reference.filename,
+            byteCount: rtfData.count,
+            pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode([item]).write(to: historyURL, options: .atomic)
+        let store = HistoryStore(
+            blobStore: blobStore,
+            preferences: PreferencesStore(
+                fileURL: root.appendingPathComponent("Preferences.json", isDirectory: false)
+            ),
+            fileURL: historyURL
+        )
+
+        await store.load()
+
+        XCTAssertEqual(store.items.first?.title, "Persisted styled text")
+        let persistedData = try Data(contentsOf: historyURL)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(
+            try decoder.decode([ClipboardItem].self, from: persistedData).first?.title,
+            "Persisted styled text"
+        )
     }
 
     func testHistoryLimitEvictsOldBlobs() async throws {

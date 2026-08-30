@@ -41,6 +41,7 @@ struct SystemLaunchAtLoginController: LaunchAtLoginControlling {
 struct PreferencesState: Codable, Equatable, Sendable {
     var launchAtLogin = false
     var pasteAfterSelection = true
+    var alwaysPasteAsPlainText = false
     var showNumbers = true
     var startNumbersAtZero = false
     var historyLimit = 5
@@ -71,6 +72,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
         case pasteAfterSelection
+        case alwaysPasteAsPlainText
         case showNumbers
         case startNumbersAtZero
         case historyLimit
@@ -92,6 +94,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         pasteAfterSelection = try container.decodeIfPresent(Bool.self, forKey: .pasteAfterSelection) ?? true
+        alwaysPasteAsPlainText = try container.decodeIfPresent(Bool.self, forKey: .alwaysPasteAsPlainText) ?? false
         showNumbers = try container.decodeIfPresent(Bool.self, forKey: .showNumbers) ?? true
         startNumbersAtZero = try container.decodeIfPresent(Bool.self, forKey: .startNumbersAtZero) ?? false
         historyLimit = try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? 5

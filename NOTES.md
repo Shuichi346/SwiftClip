@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-08-20
+Last updated: 2026-08-30
 
 ## Implementation Context
 
@@ -11,9 +11,23 @@ Last updated: 2026-08-20
 - The app is configured as a menu-bar accessory app with `LSUIElement = true`.
 - The app icon is `SwiftClip/Resources/AppIcon.icns`, referenced from `Resources/Info.plist` as `CFBundleIconFile = AppIcon`.
 - The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
-- The Extensions preferences tab now exposes only the plain-text paste trigger. Delete-on-select and delete-after-paste preferences and shortcut names were removed, and selecting a history item no longer removes it through those settings.
+- The Extensions preferences tab exposes an Always Paste as Plain Text toggle. When enabled, history text formats are converted to plain text and snippet attachments are omitted; when disabled, rich history and snippet attachments keep their original paste behavior. The retired plain-text trigger shortcut is cleared at startup.
 
 ## Problems Encountered And Fixes
+
+### Rich-text history titles hid the copied content
+
+RTF and RTFD captures were stored with their original payload but displayed only a generic Rich Text or RTFD title, so the history menu did not identify copied text.
+
+Solution:
+- Prefer the pasteboard's plain-string representation for the history title and fall back to decoding the RTF/RTFD payload when needed.
+- Keep the original RTF/RTFD blob and pasteboard type unchanged so the default paste remains rich text.
+- Refresh generic titles from persisted rich-text blobs during history loading.
+- Replace the retired plain-text paste shortcut with a persisted Always Paste as Plain Text toggle. Plain mode converts history text at the paste boundary and writes snippet text without attachments.
+
+### A running app interfered with shortcut persistence tests
+
+The full test suite briefly failed `SnippetBackupAndShortcutTests.testDeletingEntitiesClearsShortcutsAfterPersistence` after GUI launch verification because the running SwiftClip process and the test host shared `KeyboardShortcuts` storage. The case passed in isolation, and the full 47-test suite passed after terminating the verification app. Stop a running SwiftClip instance before tests that mutate shortcut assignments.
 
 ### Review remediation for clipboard, shortcuts, and snippet backup
 

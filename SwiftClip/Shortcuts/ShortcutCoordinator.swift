@@ -58,6 +58,7 @@ final class ShortcutCoordinator {
 
     func start() {
         stop()
+        KeyboardShortcuts.setShortcut(nil, for: .retiredPlainTextPaste)
         SnippetShortcutStorage.migrateAndPrune(folders: environment.snippets.allFolders())
         registerFixedShortcuts()
         reconcile(Plan(folders: environment.snippets.allFolders()))
@@ -91,13 +92,6 @@ final class ShortcutCoordinator {
         }
         listen(to: .preferences) { [weak self] in
             self?.environment.openPreferences?()
-        }
-        listen(to: .plainTextPaste) { [weak self] in
-            guard let self,
-                  let item = environment.history.items.first else {
-                return
-            }
-            environment.pasteEngine.paste(item: item, asPlainText: true)
         }
     }
 
@@ -167,7 +161,6 @@ final class ShortcutCoordinator {
             .clearHistory,
             .snippetEditor,
             .preferences,
-            .plainTextPaste,
         ]
         let dynamicNames = plan.folders.flatMap { folder -> [KeyboardShortcuts.Name] in
             [.folder(folder.id)] + folder.snippets.map { .snippet($0.id) }

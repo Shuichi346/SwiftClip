@@ -14,9 +14,12 @@ final class PasteEngine {
         self.blobStore = blobStore
     }
 
-    func paste(item: ClipboardItem, asPlainText: Bool = false) {
+    func paste(item: ClipboardItem) {
         Task {
-            let didWrite = await write(item: item, asPlainText: asPlainText)
+            let didWrite = await write(
+                item: item,
+                asPlainText: preferences.state.alwaysPasteAsPlainText
+            )
             guard didWrite else {
                 return
             }
@@ -28,6 +31,17 @@ final class PasteEngine {
     }
 
     func paste(snippet: SnippetLeaf) {
+        if preferences.state.alwaysPasteAsPlainText {
+            guard writePasteboardObjects(pasteboardTextObjects(for: snippet)) else {
+                return
+            }
+
+            if preferences.state.pasteAfterSelection {
+                synthesizeCommandV()
+            }
+            return
+        }
+
         let targetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
         if preferences.state.pasteAfterSelection,

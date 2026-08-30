@@ -80,7 +80,12 @@ extension ClipboardCapture {
            !data.isEmpty {
             return ClipboardCapture(
                 kind: .rtfd,
-                title: L10n.string("history.rtfd"),
+                title: richTextTitle(
+                    plainTextRepresentation: pasteboard.string(forType: .string),
+                    data: data,
+                    kind: .rtfd,
+                    fallback: L10n.string("history.rtfd")
+                ),
                 textValue: nil,
                 fileURLs: [],
                 data: data,
@@ -94,7 +99,12 @@ extension ClipboardCapture {
            !data.isEmpty {
             return ClipboardCapture(
                 kind: .richText,
-                title: L10n.string("history.richText"),
+                title: richTextTitle(
+                    plainTextRepresentation: pasteboard.string(forType: .string),
+                    data: data,
+                    kind: .richText,
+                    fallback: L10n.string("history.richText")
+                ),
                 textValue: nil,
                 fileURLs: [],
                 data: data,
@@ -175,6 +185,52 @@ extension ClipboardCapture {
         }
 
         return nil
+    }
+
+    static func richTextPreview(data: Data, kind: ClipboardItemKind) -> String? {
+        let documentType: NSAttributedString.DocumentType
+        switch kind {
+        case .richText:
+            documentType = .rtf
+        case .rtfd:
+            documentType = .rtfd
+        case .plainText, .fileURL, .url, .image, .pdf:
+            return nil
+        }
+
+        guard let attributedString = try? NSAttributedString(
+            data: data,
+            options: [.documentType: documentType],
+            documentAttributes: nil
+        ) else {
+            return nil
+        }
+
+        return titlePreview(from: attributedString.string)
+    }
+
+    private static func richTextTitle(
+        plainTextRepresentation: String?,
+        data: Data,
+        kind: ClipboardItemKind,
+        fallback: String
+    ) -> String {
+        titlePreview(from: plainTextRepresentation)
+            ?? richTextPreview(data: data, kind: kind)
+            ?? fallback
+    }
+
+    private static func titlePreview(from value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        return trimmed.swiftClipTruncated(to: titlePreviewLimit)
     }
 
     private static func textCapture(

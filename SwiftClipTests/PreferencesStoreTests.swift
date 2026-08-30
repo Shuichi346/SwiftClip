@@ -8,6 +8,7 @@ final class PreferencesStoreTests: XCTestCase {
 
         XCTAssertFalse(state.formatImage)
         XCTAssertFalse(state.formatPDF)
+        XCTAssertFalse(state.alwaysPasteAsPlainText)
         XCTAssertEqual(state.historyLimit, 5)
         XCTAssertEqual(state.mixedSnippetPasteBundleIDs, [])
     }
@@ -21,6 +22,7 @@ final class PreferencesStoreTests: XCTestCase {
         store.update { preferences in
             preferences.historyLimit = 12
             preferences.formatImage = true
+            preferences.alwaysPasteAsPlainText = true
             preferences.excludedBundleIDs = ["com.example.PasswordVault"]
             preferences.mixedSnippetPasteBundleIDs = ["com.example.Chat"]
         }
@@ -32,6 +34,7 @@ final class PreferencesStoreTests: XCTestCase {
 
         XCTAssertEqual(restored.state.historyLimit, 12)
         XCTAssertTrue(restored.state.formatImage)
+        XCTAssertTrue(restored.state.alwaysPasteAsPlainText)
         XCTAssertEqual(restored.state.excludedBundleIDs, ["com.example.PasswordVault"])
         XCTAssertEqual(restored.state.mixedSnippetPasteBundleIDs, ["com.example.Chat"])
     }
@@ -56,6 +59,7 @@ final class PreferencesStoreTests: XCTestCase {
 
         XCTAssertEqual(store.state.historyLimit, 8)
         XCTAssertTrue(store.state.formatImage)
+        XCTAssertFalse(store.state.alwaysPasteAsPlainText)
         XCTAssertEqual(store.state.excludedBundleIDs, ["com.example.PasswordVault"])
         XCTAssertEqual(
             store.state.mixedSnippetPasteBundleIDs,
