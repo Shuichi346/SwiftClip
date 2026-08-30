@@ -78,9 +78,11 @@ xcodebuild -project SwiftClip.xcodeproj -scheme SwiftClip -configuration Debug -
 - Route asynchronous JSON metadata writes through `JSONPersistenceQueue` or another ordered per-store writer. Do not use independent detached write tasks that can persist older snapshots after newer ones.
 - Flush history, snippet, and preferences persistence before allowing application termination to finish.
 - Keep history captures tracked by generation so Clear History cancels pending blob work and stale completions delete their blobs instead of recreating metadata.
+- Keep RTF, RTFD, and HTML history titles readable by preferring the pasteboard's plain-string representation and falling back to decoding the rich payload. Preserve the original rich blob and pasteboard type so normal paste remains rich.
 - Keep self-capture suppression around app-initiated pasteboard writes, or selecting a menu item can duplicate it in history.
 - Suppress self-capture by the exact `NSPasteboard.changeCount`; do not replace it with a generic “next change” counter.
 - In `PasteEngine`, validate file URLs and read blob data before clearing `NSPasteboard.general`; only call pasteboard-write side effects after the pasteboard write API reports success.
+- Treat `PreferencesState.alwaysPasteAsPlainText` as the single paste-boundary policy. When disabled, preserve rich history and snippet attachments; when enabled, write text-capable history as `.string` and paste snippet text without attachments. Keep the retired `plainTextPaste` shortcut inactive and clear its stored assignment.
 - For snippet attachments in `SwiftClip/Clipboard/PasteEngine.swift`, keep text and file attachments as separate `NSPasteboardWriting` items. Do not collapse mixed snippets into multiple representations of a single `NSPasteboardItem`.
 - Keep the two-step mixed snippet paste workaround driven by `PreferencesState.mixedSnippetPasteBundleIDs`, not by a hidden hard-coded browser list in `PasteEngine`.
 - App-list preferences should add bundle IDs through an `NSOpenPanel` application picker rather than asking users to type bundle identifiers manually.

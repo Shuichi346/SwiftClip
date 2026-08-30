@@ -1,4 +1,3 @@
-import KeyboardShortcuts
 import SwiftUI
 
 struct ExtensionsTab: View {
@@ -6,9 +5,9 @@ struct ExtensionsTab: View {
 
     var body: some View {
         Form {
-            SwiftClipShortcutRecorder(
-                title: L10n.string("prefs.extensions.plainTextPaste"),
-                name: .plainTextPaste
+            Toggle(
+                L10n.string("prefs.extensions.alwaysPasteAsPlainText"),
+                isOn: preferences.binding(\.alwaysPasteAsPlainText)
             )
         }
         .formStyle(.grouped)

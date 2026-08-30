@@ -8,6 +8,7 @@ struct FormatsTab: View {
             Toggle(L10n.string("prefs.formats.plainText"), isOn: preferences.binding(\.formatPlainText))
             Toggle(L10n.string("prefs.formats.rtf"), isOn: preferences.binding(\.formatRTF))
             Toggle(L10n.string("prefs.formats.rtfd"), isOn: preferences.binding(\.formatRTFD))
+            Toggle(L10n.string("prefs.formats.html"), isOn: preferences.binding(\.formatHTML))
             Toggle(L10n.string("prefs.formats.fileURL"), isOn: preferences.binding(\.formatFileURL))
             Toggle(L10n.string("prefs.formats.url"), isOn: preferences.binding(\.formatURL))
             Toggle(L10n.string("prefs.formats.pdf"), isOn: preferences.binding(\.formatPDF))

@@ -38,6 +38,20 @@ final class HistoryStore: ObservableObject {
 
             var didMigrate = false
             for index in decoded.indices {
+                if let blobFilename = decoded[index].blobFilename,
+                   (decoded[index].kind == .richText
+                    || decoded[index].kind == .rtfd
+                    || decoded[index].kind == .html),
+                   let data = try? await blobStore.read(filename: blobFilename),
+                   let richTextPreview = ClipboardCapture.richTextPreview(
+                    data: data,
+                    kind: decoded[index].kind
+                   ),
+                   richTextPreview != decoded[index].title {
+                    decoded[index].title = richTextPreview
+                    didMigrate = true
+                }
+
                 let preview = decoded[index].title.swiftClipTruncated(to: ClipboardCapture.titlePreviewLimit)
                 if preview != decoded[index].title {
                     decoded[index].title = preview

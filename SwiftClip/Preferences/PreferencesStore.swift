@@ -41,6 +41,7 @@ struct SystemLaunchAtLoginController: LaunchAtLoginControlling {
 struct PreferencesState: Codable, Equatable, Sendable {
     var launchAtLogin = false
     var pasteAfterSelection = true
+    var alwaysPasteAsPlainText = false
     var showNumbers = true
     var startNumbersAtZero = false
     var historyLimit = 5
@@ -48,6 +49,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
     var formatPlainText = true
     var formatRTF = true
     var formatRTFD = true
+    var formatHTML = true
     var formatFileURL = true
     var formatURL = true
     var formatPDF = false
@@ -71,6 +73,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
         case pasteAfterSelection
+        case alwaysPasteAsPlainText
         case showNumbers
         case startNumbersAtZero
         case historyLimit
@@ -78,6 +81,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
         case formatPlainText
         case formatRTF
         case formatRTFD
+        case formatHTML
         case formatFileURL
         case formatURL
         case formatPDF
@@ -92,6 +96,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         pasteAfterSelection = try container.decodeIfPresent(Bool.self, forKey: .pasteAfterSelection) ?? true
+        alwaysPasteAsPlainText = try container.decodeIfPresent(Bool.self, forKey: .alwaysPasteAsPlainText) ?? false
         showNumbers = try container.decodeIfPresent(Bool.self, forKey: .showNumbers) ?? true
         startNumbersAtZero = try container.decodeIfPresent(Bool.self, forKey: .startNumbersAtZero) ?? false
         historyLimit = try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? 5
@@ -99,6 +104,7 @@ struct PreferencesState: Codable, Equatable, Sendable {
         formatPlainText = try container.decodeIfPresent(Bool.self, forKey: .formatPlainText) ?? true
         formatRTF = try container.decodeIfPresent(Bool.self, forKey: .formatRTF) ?? true
         formatRTFD = try container.decodeIfPresent(Bool.self, forKey: .formatRTFD) ?? true
+        formatHTML = try container.decodeIfPresent(Bool.self, forKey: .formatHTML) ?? true
         formatFileURL = try container.decodeIfPresent(Bool.self, forKey: .formatFileURL) ?? true
         formatURL = try container.decodeIfPresent(Bool.self, forKey: .formatURL) ?? true
         formatPDF = try container.decodeIfPresent(Bool.self, forKey: .formatPDF) ?? false

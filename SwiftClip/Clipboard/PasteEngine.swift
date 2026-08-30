@@ -14,9 +14,12 @@ final class PasteEngine {
         self.blobStore = blobStore
     }
 
-    func paste(item: ClipboardItem, asPlainText: Bool = false) {
+    func paste(item: ClipboardItem) {
         Task {
-            let didWrite = await write(item: item, asPlainText: asPlainText)
+            let didWrite = await write(
+                item: item,
+                asPlainText: preferences.state.alwaysPasteAsPlainText
+            )
             guard didWrite else {
                 return
             }
@@ -28,6 +31,17 @@ final class PasteEngine {
     }
 
     func paste(snippet: SnippetLeaf) {
+        if preferences.state.alwaysPasteAsPlainText {
+            guard writePasteboardObjects(pasteboardTextObjects(for: snippet)) else {
+                return
+            }
+
+            if preferences.state.pasteAfterSelection {
+                synthesizeCommandV()
+            }
+            return
+        }
+
         let targetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
         if preferences.state.pasteAfterSelection,
@@ -207,11 +221,22 @@ final class PasteEngine {
             switch item.kind {
             case .plainText, .url:
                 return String(data: data, encoding: .utf8)
-            case .richText, .rtfd:
-                let documentType: NSAttributedString.DocumentType = item.kind == .rtfd ? .rtfd : .rtf
+            case .richText:
                 return try NSAttributedString(
                     data: data,
-                    options: [.documentType: documentType],
+                    options: [.documentType: NSAttributedString.DocumentType.rtf],
+                    documentAttributes: nil
+                ).string
+            case .rtfd:
+                return try NSAttributedString(
+                    data: data,
+                    options: [.documentType: NSAttributedString.DocumentType.rtfd],
+                    documentAttributes: nil
+                ).string
+            case .html:
+                return try NSAttributedString(
+                    data: data,
+                    options: [.documentType: NSAttributedString.DocumentType.html],
                     documentAttributes: nil
                 ).string
             case .fileURL, .image, .pdf:

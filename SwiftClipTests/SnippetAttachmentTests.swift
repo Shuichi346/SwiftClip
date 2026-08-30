@@ -136,6 +136,39 @@ final class SnippetAttachmentTests: XCTestCase {
     }
 
     @MainActor
+    func testAlwaysPasteAsPlainTextOmitsSnippetAttachments() throws {
+        let fileURL = temporaryDirectory.appendingPathComponent("upload.txt", isDirectory: false)
+        try Data("file".utf8).write(to: fileURL, options: .atomic)
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+            state.alwaysPasteAsPlainText = true
+        }
+        let engine = PasteEngine(
+            preferences: preferences,
+            blobStore: BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true))
+        )
+
+        engine.paste(
+            snippet: SnippetLeaf(
+                title: "Mixed",
+                content: "Prompt text",
+                attachmentURLs: [fileURL.absoluteString]
+            )
+        )
+
+        let pasteboard = NSPasteboard.general
+        let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [NSURL]
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "Prompt text")
+        XCTAssertTrue(urls?.isEmpty ?? true)
+        XCTAssertEqual(pasteboard.pasteboardItems?.count, 1)
+    }
+
+    @MainActor
     func testPasteHistoryItemIgnoresInvalidFileURLs() async throws {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -211,6 +244,7 @@ final class SnippetAttachmentTests: XCTestCase {
         let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
         preferences.update { state in
             state.pasteAfterSelection = false
+            state.alwaysPasteAsPlainText = true
         }
         let engine = PasteEngine(preferences: preferences, blobStore: blobStore)
         let writeExpectation = expectation(description: "Plain-text pasteboard write")
@@ -225,12 +259,123 @@ final class SnippetAttachmentTests: XCTestCase {
                 blobFilename: reference.filename,
                 byteCount: rtfData.count,
                 pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
-            ),
-            asPlainText: true
+            )
         )
 
         await fulfillment(of: [writeExpectation], timeout: 1)
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Styled clipboard text")
+        XCTAssertNil(NSPasteboard.general.data(forType: .rtf))
+    }
+
+    @MainActor
+    func testDefaultPastePreservesRichHistoryBlob() async throws {
+        let attributedString = NSAttributedString(string: "Styled clipboard text")
+        let rtfData = try attributedString.data(
+            from: NSRange(location: 0, length: attributedString.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+        let blobStore = BlobStore(
+            directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true)
+        )
+        let reference = try await blobStore.write(
+            data: rtfData,
+            fileExtension: "rtf",
+            pasteboardTypeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue
+        )
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+        }
+        let engine = PasteEngine(preferences: preferences, blobStore: blobStore)
+        let writeExpectation = expectation(description: "Rich-text pasteboard write")
+        engine.onPasteboardWrite = { _ in
+            writeExpectation.fulfill()
+        }
+
+        engine.paste(
+            item: ClipboardItem(
+                kind: .richText,
+                title: "Styled clipboard text",
+                blobFilename: reference.filename,
+                byteCount: rtfData.count,
+                pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
+            )
+        )
+
+        await fulfillment(of: [writeExpectation], timeout: 1)
+        XCTAssertEqual(NSPasteboard.general.data(forType: .rtf), rtfData)
+    }
+
+    @MainActor
+    func testAlwaysPasteAsPlainTextConvertsHTMLHistoryBlob() async throws {
+        let htmlData = Data("<html><body><strong>Styled</strong> clipboard text</body></html>".utf8)
+        let blobStore = BlobStore(
+            directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true)
+        )
+        let reference = try await blobStore.write(
+            data: htmlData,
+            fileExtension: "html",
+            pasteboardTypeIdentifier: NSPasteboard.PasteboardType.html.rawValue
+        )
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+            state.alwaysPasteAsPlainText = true
+        }
+        let engine = PasteEngine(preferences: preferences, blobStore: blobStore)
+        let writeExpectation = expectation(description: "HTML converted to plain-text pasteboard write")
+        engine.onPasteboardWrite = { _ in
+            writeExpectation.fulfill()
+        }
+
+        engine.paste(
+            item: ClipboardItem(
+                kind: .html,
+                title: "Styled clipboard text",
+                blobFilename: reference.filename,
+                byteCount: htmlData.count,
+                pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
+            )
+        )
+
+        await fulfillment(of: [writeExpectation], timeout: 1)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Styled clipboard text")
+        XCTAssertNil(NSPasteboard.general.data(forType: .html))
+    }
+
+    @MainActor
+    func testDefaultPastePreservesHTMLHistoryBlob() async throws {
+        let htmlData = Data("<html><body><strong>Styled</strong> clipboard text</body></html>".utf8)
+        let blobStore = BlobStore(
+            directoryURL: temporaryDirectory.appendingPathComponent("Blobs", isDirectory: true)
+        )
+        let reference = try await blobStore.write(
+            data: htmlData,
+            fileExtension: "html",
+            pasteboardTypeIdentifier: NSPasteboard.PasteboardType.html.rawValue
+        )
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update { state in
+            state.pasteAfterSelection = false
+        }
+        let engine = PasteEngine(preferences: preferences, blobStore: blobStore)
+        let writeExpectation = expectation(description: "HTML pasteboard write")
+        engine.onPasteboardWrite = { _ in
+            writeExpectation.fulfill()
+        }
+
+        engine.paste(
+            item: ClipboardItem(
+                kind: .html,
+                title: "Styled clipboard text",
+                blobFilename: reference.filename,
+                byteCount: htmlData.count,
+                pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
+            )
+        )
+
+        await fulfillment(of: [writeExpectation], timeout: 1)
+        XCTAssertEqual(NSPasteboard.general.data(forType: .html), htmlData)
     }
 
     @MainActor

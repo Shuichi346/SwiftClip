@@ -5,6 +5,7 @@ enum ClipboardItemKind: String, Codable, CaseIterable, Sendable {
     case plainText
     case richText
     case rtfd
+    case html
     case fileURL
     case url
     case image
@@ -18,6 +19,8 @@ enum ClipboardItemKind: String, Codable, CaseIterable, Sendable {
             return "rtf"
         case .rtfd:
             return "rtfd"
+        case .html:
+            return "html"
         case .fileURL:
             return "url"
         case .url:
@@ -37,6 +40,8 @@ enum ClipboardItemKind: String, Codable, CaseIterable, Sendable {
             return .rtf
         case .rtfd:
             return .rtfd
+        case .html:
+            return .html
         case .fileURL:
             return .fileURL
         case .url:

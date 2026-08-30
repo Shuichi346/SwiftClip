@@ -2,8 +2,10 @@
 
 ## [Unreleased]
 
+- Fixed rich text copied as HTML falling back to plain text when selected from history; HTML is now captured as a default-enabled format, preserved for normal paste, and converted only when Always Paste as Plain Text is enabled.
+- Changed rich-text history entries to show readable text previews while preserving their rich payload, and replaced the plain-text paste shortcut with an Always Paste as Plain Text toggle that also omits snippet attachments while enabled.
 - Replaced the lossy pre-import XML backup with a restorable `.swiftclipbackup` package that preserves snippet IDs, enabled states, attachments, ordering, and folder/snippet shortcuts; added a Restore Backup action to the snippet editor.
-- Activated folder, snippet, and plain-text-paste shortcuts, migrated legacy dotted dynamic shortcut names, prevented duplicate assignments, and cleaned up deleted-entity shortcuts after durable persistence.
+- Activated folder and snippet shortcuts, migrated legacy dotted dynamic shortcut names, prevented duplicate assignments, and cleaned up deleted-entity shortcuts after durable persistence.
 - Fixed clipboard-history races and fidelity issues: Clear History now cancels in-flight blob captures, rich formats win over plain representations, exact pasteboard changes are suppressed, and rich history can be pasted as plain text.
 - Prevented empty snippets and invalid history files from clearing the clipboard, applied reduced history limits immediately, and rejected unsafe blob filenames and symbolic links.
 - Improved persistence and responsiveness with quit-time flushing, durability-before-file-deletion, coalesced snippet text writes, off-main JSON/XML/attachment I/O, bounded large-text previews, cached menus, and bounded snippet tooltips.
@@ -28,7 +30,7 @@
 - Fixed history item pasting so failed pasteboard writes, including invalid file URL history entries, do not trigger auto-paste side effects or clear the existing clipboard.
 - Fixed the Paste Permission window so its Open Settings button does not also trigger Apple's native Accessibility prompt.
 - Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.
-- Removed the Extensions preferences for delete-on-select and delete-after-paste, leaving only the plain-text paste trigger.
+- Removed the Extensions preferences for delete-on-select and delete-after-paste.
 - Removed the Quit keyboard shortcut display from the standalone shortcut popup to reduce the reserved blank space before submenu arrows.
 - Fixed the snippet editor sidebar by replacing `NavigationSplitView` with `HSplitView`, keeping a 280-point initial width with 260-point minimum and 360-point maximum bounds.
 - Fixed a post-merge build failure in `SnippetStore` by preserving both ordered JSON persistence and managed snippet attachment cleanup.

@@ -803,6 +803,23 @@
         }
       }
     },
+    "history.html" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML"
+          }
+        }
+      }
+    },
     "history.richText" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1211,19 +1228,19 @@
         }
       }
     },
-    "prefs.extensions.plainTextPaste" : {
+    "prefs.extensions.alwaysPasteAsPlainText" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plain text paste trigger"
+            "value" : "Always Paste as Plain Text"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "プレーンテキストペーストトリガー"
+            "value" : "常にプレーンテキストとしてペースト"
           }
         }
       }
@@ -1275,6 +1292,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PDF"
+          }
+        }
+      }
+    },
+    "prefs.formats.html" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML"
           }
         }
       }
