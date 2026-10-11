@@ -11,6 +11,15 @@ enum ClipboardItemKind: String, Codable, CaseIterable, Sendable {
     case image
     case pdf
 
+    var supportsPlainText: Bool {
+        switch self {
+        case .plainText, .richText, .rtfd, .html, .url:
+            return true
+        case .fileURL, .image, .pdf:
+            return false
+        }
+    }
+
     var defaultFileExtension: String {
         switch self {
         case .plainText:

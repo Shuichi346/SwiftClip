@@ -136,7 +136,7 @@ final class SnippetAttachmentTests: XCTestCase {
     }
 
     @MainActor
-    func testAlwaysPasteAsPlainTextOmitsSnippetAttachments() throws {
+    func testAlwaysPasteAsPlainTextPreservesSnippetAttachments() throws {
         let fileURL = temporaryDirectory.appendingPathComponent("upload.txt", isDirectory: false)
         try Data("file".utf8).write(to: fileURL, options: .atomic)
         let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
@@ -164,8 +164,38 @@ final class SnippetAttachmentTests: XCTestCase {
         ) as? [NSURL]
 
         XCTAssertEqual(pasteboard.string(forType: .string), "Prompt text")
-        XCTAssertTrue(urls?.isEmpty ?? true)
-        XCTAssertEqual(pasteboard.pasteboardItems?.count, 1)
+        XCTAssertEqual(urls?.map(\.absoluteString), [fileURL.absoluteString])
+        let items = try XCTUnwrap(pasteboard.pasteboardItems)
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(items[0].string(forType: .string), "Prompt text")
+        XCTAssertEqual(items[1].string(forType: .fileURL), fileURL.absoluteString)
+    }
+
+    @MainActor
+    func testAlwaysPasteAsPlainTextPastesAttachmentOnlySnippet() throws {
+        let imageURL = temporaryDirectory.appendingPathComponent("image.png")
+        let imageData = try XCTUnwrap(Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII="
+        ))
+        try imageData.write(to: imageURL)
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update {
+            $0.pasteAfterSelection = false
+            $0.alwaysPasteAsPlainText = true
+        }
+        let engine = PasteEngine(
+            preferences: preferences,
+            blobStore: BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs"))
+        )
+        var writtenChangeCount: Int?
+        engine.onPasteboardWrite = { writtenChangeCount = $0 }
+
+        engine.paste(snippet: SnippetLeaf(title: "Image only", content: "", attachmentURLs: [imageURL.absoluteString]))
+
+        let items = try XCTUnwrap(NSPasteboard.general.pasteboardItems)
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].string(forType: .fileURL), imageURL.absoluteString)
+        XCTAssertEqual(writtenChangeCount, NSPasteboard.general.changeCount)
     }
 
     @MainActor
@@ -304,6 +334,12 @@ final class SnippetAttachmentTests: XCTestCase {
 
         await fulfillment(of: [writeExpectation], timeout: 1)
         XCTAssertEqual(NSPasteboard.general.data(forType: .rtf), rtfData)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Styled clipboard text")
+        XCTAssertEqual(NSPasteboard.general.pasteboardItems?.count, 1)
+        let plainTextEditor = NSTextView()
+        plainTextEditor.isRichText = false
+        plainTextEditor.paste(nil)
+        XCTAssertEqual(plainTextEditor.string, "Styled clipboard text")
     }
 
     @MainActor
@@ -376,6 +412,90 @@ final class SnippetAttachmentTests: XCTestCase {
 
         await fulfillment(of: [writeExpectation], timeout: 1)
         XCTAssertEqual(NSPasteboard.general.data(forType: .html), htmlData)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Styled clipboard text")
+        XCTAssertEqual(NSPasteboard.general.pasteboardItems?.count, 1)
+    }
+
+    @MainActor
+    func testDefaultPasteRestoresFullRTFDTextBeyondMenuPreview() async throws {
+        let text = "  " + String(repeating: "日本語\n", count: 100) + "  "
+        let richText = NSAttributedString(string: text)
+        let data = try richText.data(
+            from: NSRange(location: 0, length: richText.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]
+        )
+        try await assertBlobPaste(kind: .rtfd, data: data, expectedText: text)
+    }
+
+    @MainActor
+    func testDefaultPasteRestoresLargeURLBlobAsURLAndPlainText() async throws {
+        let text = "https://example.com/" + String(repeating: "a", count: ClipboardCapture.inlineTextByteLimit)
+        try await assertBlobPaste(kind: .url, data: Data(text.utf8), expectedText: text)
+    }
+
+    @MainActor
+    func testPastePrefersCapturedPlainRepresentationInBothModes() async throws {
+        let text = "  Original plain representation\n" + String(repeating: "日本語", count: 100)
+        for plainMode in [false, true] {
+            // A source can provide valid plain text even when its rich payload is unusable.
+            try await assertBlobPaste(
+                kind: .richText,
+                data: Data("invalid rtf".utf8),
+                expectedText: text,
+                capturedText: text,
+                plainMode: plainMode
+            )
+        }
+    }
+
+    @MainActor
+    func testPlainModePreservesNonTextHistoryBlobs() async throws {
+        for kind in [ClipboardItemKind.image, .pdf] {
+            try await assertBlobPaste(kind: kind, data: Data("binary payload".utf8), expectedText: nil, plainMode: true)
+        }
+    }
+
+    @MainActor
+    private func assertBlobPaste(
+        kind: ClipboardItemKind,
+        data: Data,
+        expectedText: String?,
+        capturedText: String? = nil,
+        plainMode: Bool = false
+    ) async throws {
+        let blobs = BlobStore(directoryURL: temporaryDirectory.appendingPathComponent("Blobs"))
+        let reference = try await blobs.write(
+            data: data,
+            fileExtension: kind.defaultFileExtension,
+            pasteboardTypeIdentifier: kind.fallbackPasteboardType.rawValue
+        )
+        let preferences = PreferencesStore(fileURL: temporaryDirectory.appendingPathComponent("Preferences.json"))
+        preferences.update {
+            $0.pasteAfterSelection = false
+            $0.alwaysPasteAsPlainText = plainMode
+        }
+        let engine = PasteEngine(preferences: preferences, blobStore: blobs)
+        let written = expectation(description: "History representations restored")
+        engine.onPasteboardWrite = { _ in written.fulfill() }
+
+        engine.paste(item: ClipboardItem(
+            kind: kind,
+            title: "Short menu preview",
+            textValue: capturedText,
+            blobFilename: reference.filename,
+            byteCount: data.count,
+            pasteboardTypeIdentifier: reference.pasteboardTypeIdentifier
+        ))
+
+        await fulfillment(of: [written], timeout: 2)
+        let pasteboard = NSPasteboard.general
+        XCTAssertEqual(pasteboard.string(forType: .string), expectedText)
+        XCTAssertEqual(pasteboard.pasteboardItems?.count, 1)
+        if plainMode && kind.supportsPlainText {
+            XCTAssertNil(pasteboard.data(forType: kind.fallbackPasteboardType))
+        } else {
+            XCTAssertEqual(pasteboard.data(forType: kind.fallbackPasteboardType), data)
+        }
     }
 
     @MainActor

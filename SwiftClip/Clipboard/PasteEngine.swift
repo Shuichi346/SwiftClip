@@ -31,17 +31,7 @@ final class PasteEngine {
     }
 
     func paste(snippet: SnippetLeaf) {
-        if preferences.state.alwaysPasteAsPlainText {
-            guard writePasteboardObjects(pasteboardTextObjects(for: snippet)) else {
-                return
-            }
-
-            if preferences.state.pasteAfterSelection {
-                synthesizeCommandV()
-            }
-            return
-        }
-
+        // Snippet text is already plain; the text-format policy must not remove files.
         let targetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
         if preferences.state.pasteAfterSelection,
@@ -72,7 +62,7 @@ final class PasteEngine {
     }
 
     private func write(item: ClipboardItem, asPlainText: Bool) async -> Bool {
-        if asPlainText {
+        if asPlainText, item.kind.supportsPlainText {
             guard let text = await plainText(for: item) else {
                 return false
             }
@@ -98,9 +88,19 @@ final class PasteEngine {
             do {
                 let data = try await blobStore.read(filename: blobFilename)
                 let type = NSPasteboard.PasteboardType(item.pasteboardTypeIdentifier ?? item.kind.fallbackPasteboardType.rawValue)
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                return completePasteboardWrite(pasteboard.setData(data, forType: type))
+                let object = NSPasteboardItem()
+                guard object.setData(data, forType: type) else {
+                    return false
+                }
+                // Plain input fields need a string representation of the same item.
+                // Keep rich data intact for destinations that support its formatting.
+                if item.kind.supportsPlainText,
+                   let text = item.textValue ?? plainText(data: data, kind: item.kind) {
+                    guard object.setString(text, forType: .string) else {
+                        return false
+                    }
+                }
+                return writePasteboardObjects([object])
             } catch {
                 AppLog.clipboard.error("Could not paste history item: \(error.localizedDescription, privacy: .public)")
                 return false
@@ -218,32 +218,20 @@ final class PasteEngine {
 
         do {
             let data = try await blobStore.read(filename: blobFilename)
-            switch item.kind {
-            case .plainText, .url:
-                return String(data: data, encoding: .utf8)
-            case .richText:
-                return try NSAttributedString(
-                    data: data,
-                    options: [.documentType: NSAttributedString.DocumentType.rtf],
-                    documentAttributes: nil
-                ).string
-            case .rtfd:
-                return try NSAttributedString(
-                    data: data,
-                    options: [.documentType: NSAttributedString.DocumentType.rtfd],
-                    documentAttributes: nil
-                ).string
-            case .html:
-                return try NSAttributedString(
-                    data: data,
-                    options: [.documentType: NSAttributedString.DocumentType.html],
-                    documentAttributes: nil
-                ).string
-            case .fileURL, .image, .pdf:
-                return nil
-            }
+            return plainText(data: data, kind: item.kind)
         } catch {
             AppLog.clipboard.error("Could not convert history item to plain text: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func plainText(data: Data, kind: ClipboardItemKind) -> String? {
+        switch kind {
+        case .plainText, .url:
+            return String(data: data, encoding: .utf8)
+        case .richText, .rtfd, .html:
+            return ClipboardCapture.richTextString(data: data, kind: kind)
+        case .fileURL, .image, .pdf:
             return nil
         }
     }

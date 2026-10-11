@@ -1,6 +1,6 @@
 # SwiftClip Handoff Notes
 
-Last updated: 2026-08-30
+Last updated: 2026-10-11
 
 ## Implementation Context
 
@@ -11,9 +11,23 @@ Last updated: 2026-08-30
 - The app is configured as a menu-bar accessory app with `LSUIElement = true`.
 - The app icon is `SwiftClip/Resources/AppIcon.icns`, referenced from `Resources/Info.plist` as `CFBundleIconFile = AppIcon`.
 - The `Main` global shortcut opens a standalone History/Snippets popup next to the cursor. It intentionally does not invoke the menu-bar status item.
-- The Extensions preferences tab exposes an Always Paste as Plain Text toggle. When enabled, history text formats are converted to plain text and snippet attachments are omitted; when disabled, rich history and snippet attachments keep their original paste behavior. The retired plain-text trigger shortcut is cleared at startup.
+- The Extensions preferences tab exposes an Always Paste as Plain Text toggle. It converts history text formats to plain text while preserving snippet attachments and non-text history in both modes. Normal rich history replay includes a full plain-string fallback alongside its original payload. The retired plain-text trigger shortcut is cleared at startup.
 
 ## Problems Encountered And Fixes
+
+### Plain-text mode suppressed images and history lacked input-field fallbacks
+
+The plain-text snippet branch omitted all attachments and performed no write for attachment-only snippets. The setting now applies only to text formatting; existing mixed-snippet app preferences and separate text/file pasteboard items apply in both modes. Non-text history images, PDFs, and files are also preserved.
+
+Normal history replay restored only the selected rich blob type. Input fields reading `.string` could therefore receive no text, which is consistent with the reported failure while plain mode was off. Rich history and large URL blobs now restore a full string representation on the same pasteboard item. Existing rich blobs are decoded at paste time; new captures also retain source plain strings up to the existing 64 KiB inline limit. Original whitespace and content beyond the menu preview are preserved. Rich blobs remain unchanged, and oversized text stays out of JSON.
+
+Verification on 2026-10-11:
+- Xcode MCP built the app and test target successfully with Swift 6.4.
+- Xcode MCP could not load the test bundle under its local hardened-runtime signing configuration (`mapping process and mapped file ... have different Team IDs`). The app and test bundle both reported ad hoc signatures; no signing settings or entitlements were changed.
+- The repo-approved `xcodebuild ... CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO test` passed all 59 tests. Added coverage includes image-only/mixed snippets in plain mode, full RTF/RTFD/HTML and URL fallbacks, source-string persistence, bounded capture metadata, non-text history, and pasting rich history into a plain `NSTextView`.
+- `./script/build_and_run.sh --verify` built and launched the updated Debug app successfully and confirmed its running process.
+- The known non-fatal AppIntents metadata warning remains.
+- The user's exact failing website and copy source were unavailable. Real browser form paste injection and target-specific image upload behavior remain manual checks; pasteboard and plain-editor tests do not establish those outcomes.
 
 ### HTML rich-text history fell back to plain text
 

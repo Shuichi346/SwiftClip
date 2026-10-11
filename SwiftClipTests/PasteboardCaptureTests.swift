@@ -21,7 +21,7 @@ final class PasteboardCaptureTests: XCTestCase {
         XCTAssertEqual(rtfdCapture.kind, .rtfd)
         XCTAssertEqual(rtfdCapture.title, "Readable clipboard text")
         XCTAssertEqual(rtfdCapture.data, rtfdData)
-        XCTAssertNil(rtfdCapture.textValue)
+        XCTAssertEqual(rtfdCapture.textValue, "Readable clipboard text")
 
         preferences.formatRTFD = false
         let rtfCapture = try XCTUnwrap(
@@ -30,7 +30,7 @@ final class PasteboardCaptureTests: XCTestCase {
         XCTAssertEqual(rtfCapture.kind, .richText)
         XCTAssertEqual(rtfCapture.title, "Readable clipboard text")
         XCTAssertEqual(rtfCapture.data, rtfData)
-        XCTAssertNil(rtfCapture.textValue)
+        XCTAssertEqual(rtfCapture.textValue, "Readable clipboard text")
     }
 
     func testHTMLTakesPriorityOverURLAndPlainText() throws {
@@ -48,7 +48,7 @@ final class PasteboardCaptureTests: XCTestCase {
         XCTAssertEqual(capture.kind, .html)
         XCTAssertEqual(capture.title, "Styled text")
         XCTAssertEqual(capture.data, htmlData)
-        XCTAssertNil(capture.textValue)
+        XCTAssertEqual(capture.textValue, "Styled text")
         XCTAssertEqual(capture.pasteboardTypeIdentifier, NSPasteboard.PasteboardType.html.rawValue)
     }
 
@@ -135,6 +135,32 @@ final class PasteboardCaptureTests: XCTestCase {
         filter.recordSelfWrite(changeCount: 12)
         XCTAssertTrue(filter.shouldSuppress(observedChangeCount: 12))
         XCTAssertFalse(filter.shouldSuppress(observedChangeCount: 13))
+    }
+
+    func testRichCaptureKeepsFullPlainTextWithoutTrimmingOrPreviewTruncation() throws {
+        let pasteboard = NSPasteboard(name: .init("app.swiftclip.tests.\(UUID().uuidString)"))
+        let text = "  " + String(repeating: "日本語\n", count: 100) + "  "
+        pasteboard.setString(text, forType: .string)
+        pasteboard.setData(Data("invalid rtf".utf8), forType: .rtf)
+
+        let capture = try XCTUnwrap(ClipboardCapture.make(from: pasteboard, preferences: PreferencesState()))
+
+        XCTAssertEqual(capture.textValue, text)
+        XCTAssertEqual(capture.title.count, ClipboardCapture.titlePreviewLimit)
+    }
+
+    func testRichCaptureDoesNotInlineOversizedPlainRepresentation() throws {
+        let pasteboard = NSPasteboard(name: .init("app.swiftclip.tests.\(UUID().uuidString)"))
+        let text = String(repeating: "x", count: ClipboardCapture.inlineTextByteLimit + 1)
+        let data = try richTextData(text, documentType: .rtf)
+        pasteboard.setString(text, forType: .string)
+        pasteboard.setData(data, forType: .rtf)
+
+        let capture = try XCTUnwrap(ClipboardCapture.make(from: pasteboard, preferences: PreferencesState()))
+
+        XCTAssertNil(capture.textValue)
+        XCTAssertEqual(capture.data, data)
+        XCTAssertEqual(ClipboardCapture.richTextString(data: data, kind: .richText), text)
     }
 
     private func richTextData(
