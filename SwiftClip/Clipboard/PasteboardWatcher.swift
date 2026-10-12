@@ -86,7 +86,7 @@ extension ClipboardCapture {
                     kind: .rtfd,
                     fallback: L10n.string("history.rtfd")
                 ),
-                textValue: nil,
+                textValue: inlinePlainText(from: pasteboard),
                 fileURLs: [],
                 data: data,
                 byteCount: data.count,
@@ -105,7 +105,7 @@ extension ClipboardCapture {
                     kind: .richText,
                     fallback: L10n.string("history.richText")
                 ),
-                textValue: nil,
+                textValue: inlinePlainText(from: pasteboard),
                 fileURLs: [],
                 data: data,
                 byteCount: data.count,
@@ -124,7 +124,7 @@ extension ClipboardCapture {
                     kind: .html,
                     fallback: L10n.string("history.html")
                 ),
-                textValue: nil,
+                textValue: inlinePlainText(from: pasteboard),
                 fileURLs: [],
                 data: data,
                 byteCount: data.count,
@@ -207,6 +207,10 @@ extension ClipboardCapture {
     }
 
     static func richTextPreview(data: Data, kind: ClipboardItemKind) -> String? {
+        titlePreview(from: richTextString(data: data, kind: kind))
+    }
+
+    static func richTextString(data: Data, kind: ClipboardItemKind) -> String? {
         let documentType: NSAttributedString.DocumentType
         switch kind {
         case .richText:
@@ -227,7 +231,15 @@ extension ClipboardCapture {
             return nil
         }
 
-        return titlePreview(from: attributedString.string)
+        return attributedString.string
+    }
+
+    private static func inlinePlainText(from pasteboard: NSPasteboard) -> String? {
+        guard let string = pasteboard.string(forType: .string),
+              string.utf8.count <= inlineTextByteLimit else {
+            return nil
+        }
+        return string
     }
 
     private static func richTextTitle(

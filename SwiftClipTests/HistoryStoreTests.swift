@@ -111,6 +111,35 @@ final class HistoryStoreTests: XCTestCase {
         XCTAssertEqual(blobCount, 3)
     }
 
+    func testRichCaptureRetainsOriginalPlainRepresentationAcrossReload() async throws {
+        let root = try temporaryDirectory()
+        let historyURL = root.appendingPathComponent("History.json")
+        let blobs = BlobStore(directoryURL: root.appendingPathComponent("Blobs"))
+        let preferences = PreferencesStore(fileURL: root.appendingPathComponent("Preferences.json"))
+        let store = HistoryStore(blobStore: blobs, preferences: preferences, fileURL: historyURL)
+        let pasteboard = NSPasteboard(name: .init("app.swiftclip.tests.\(UUID().uuidString)"))
+        let plainText = "  Original copied text\n" + String(repeating: "日本語", count: 100)
+        let richText = NSAttributedString(string: "Different rich representation")
+        let data = try richText.data(
+            from: NSRange(location: 0, length: richText.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+        pasteboard.setString(plainText, forType: .string)
+        pasteboard.setData(data, forType: .rtf)
+        let capture = try XCTUnwrap(ClipboardCapture.make(from: pasteboard, preferences: preferences.state))
+
+        store.add(capture)
+        await store.flushPersistence()
+        let reloaded = HistoryStore(blobStore: blobs, preferences: preferences, fileURL: historyURL)
+        await reloaded.load()
+
+        let item = try XCTUnwrap(reloaded.items.first)
+        XCTAssertEqual(item.textValue, plainText)
+        XCTAssertEqual(item.title, capture.title)
+        let restoredData = try await blobs.read(filename: XCTUnwrap(item.blobFilename))
+        XCTAssertEqual(restoredData, data)
+    }
+
     func testClearAllCancelsInFlightBlobCapture() async throws {
         let root = try temporaryDirectory()
         let blobs = SuspendedBlobStore()

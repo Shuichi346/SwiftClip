@@ -47,6 +47,7 @@ final class HistoryStore: ObservableObject {
                     data: data,
                     kind: decoded[index].kind
                    ),
+                   decoded[index].textValue == nil,
                    richTextPreview != decoded[index].title {
                     decoded[index].title = richTextPreview
                     didMigrate = true
