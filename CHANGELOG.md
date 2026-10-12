@@ -1,38 +1,47 @@
 # Changelog
 
-## [Unreleased]
+## Fixed
 
 - Fixed Always Paste as Plain Text dropping snippet attachments, including image-only snippets; the setting now affects text formatting while preserving files, images, and PDFs.
 - Fixed history replay omitting plain-text representations needed by input fields. RTF, RTFD, HTML, and large URL history now restore a full string alongside their original representation; new rich-text captures retain the source's bounded plain-text representation across reloads.
 - Fixed rich text copied as HTML falling back to plain text when selected from history; HTML is now captured as a default-enabled format, preserved for normal paste, and converted only when Always Paste as Plain Text is enabled.
-- Changed rich-text history entries to show readable text previews while preserving their rich payload, and replaced the plain-text paste shortcut with an Always Paste as Plain Text toggle.
-- Replaced the lossy pre-import XML backup with a restorable `.swiftclipbackup` package that preserves snippet IDs, enabled states, attachments, ordering, and folder/snippet shortcuts; added a Restore Backup action to the snippet editor.
-- Activated folder and snippet shortcuts, migrated legacy dotted dynamic shortcut names, prevented duplicate assignments, and cleaned up deleted-entity shortcuts after durable persistence.
 - Fixed clipboard-history races and fidelity issues: Clear History now cancels in-flight blob captures, rich formats win over plain representations, exact pasteboard changes are suppressed, and rich history can be pasted as plain text.
 - Prevented empty snippets and invalid history files from clearing the clipboard, applied reduced history limits immediately, and rejected unsafe blob filenames and symbolic links.
-- Improved persistence and responsiveness with quit-time flushing, durability-before-file-deletion, coalesced snippet text writes, off-main JSON/XML/attachment I/O, bounded large-text previews, cached menus, and bounded snippet tooltips.
+- Fixed startup loading of persisted clipboard history and aligned the snippet outline drag payload UTI with the app's exported type declaration.
+- Fixed mixed text-and-attachment snippet pasting so text and files are written as separate pasteboard items, with an app-configurable auto-paste path for apps that route file pastes through upload handling.
+- Fixed history item pasting so failed pasteboard writes, including invalid file URL history entries, do not trigger auto-paste side effects or clear the existing clipboard.
+- Fixed the Paste Permission window so its Open Settings button does not also trigger Apple's native Accessibility prompt.
+- Fixed the snippet editor sidebar by replacing `NavigationSplitView` with `HSplitView`, keeping a 280-point initial width with 260-point minimum and 360-point maximum bounds.
+- Fixed a post-merge build failure in `SnippetStore` by preserving both ordered JSON persistence and managed snippet attachment cleanup.
+- Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.
+
+## Added
+
+- Activated folder and snippet shortcuts, migrated legacy dotted dynamic shortcut names, prevented duplicate assignments, and cleaned up deleted-entity shortcuts after durable persistence.
 - Added a Preferences route to reopen Paste Permission and kept Launch at Login state unchanged when Service Management rejects an update.
-- Updated the `KeyboardShortcuts` package requirement to version 3.0.1 or newer compatible release.
 - Bootstrapped the SwiftClip macOS menu-bar app.
 - Added local clipboard history, snippet management, preferences, shortcuts, localization, and build/run documentation.
 - Added the app icon as `SwiftClip/Resources/AppIcon.icns` and wired it through `CFBundleIconFile` for Xcode builds and packaged app bundles.
-- Changed the `Main` global shortcut to open a standalone History/Snippets popup next to the cursor instead of opening the menu-bar status item menu.
 - Added hover previews for snippet menu items and flattened the menu-bar Snippets section so folders are visible directly below the Snippets header.
 - Added drag-and-drop reordering for snippet folders and snippets, including moving snippets between folders.
 - Declared the snippet outline drag payload UTI in `Info.plist` and widened outline row drop targets so snippets can be moved between folders by dropping anywhere on the destination row.
-- Fixed startup loading of persisted clipboard history and aligned the snippet outline drag payload UTI with the app's exported type declaration.
-- Migrated the snippet sidebar to `NSOutlineView` so cross-folder snippet drag-and-drop works reliably.
 - Added snippet attachments for local files, images, and videos so snippets can paste file objects with optional text instead of pasting absolute paths as text.
-- Changed snippet attachments to copy selected files into SwiftClip's Application Support storage and clean up managed copies when attachments or snippets are deleted.
-- Fixed mixed text-and-attachment snippet pasting so text and files are written as separate pasteboard items, with an app-configurable auto-paste path for apps that route file pastes through upload handling.
 - Added a Mixed Snippet Paste Apps preference list so users can choose which bundle IDs use the two-step text-then-attachments paste workaround.
+
+## Changed
+
+- Changed rich-text history entries to show readable text previews while preserving their rich payload, and replaced the plain-text paste shortcut with an Always Paste as Plain Text toggle.
+- Replaced the lossy pre-import XML backup with a restorable `.swiftclipbackup` package that preserves snippet IDs, enabled states, attachments, ordering, and folder/snippet shortcuts; added a Restore Backup action to the snippet editor.
+- Improved persistence and responsiveness with quit-time flushing, durability-before-file-deletion, coalesced snippet text writes, off-main JSON/XML/attachment I/O, bounded large-text previews, cached menus, and bounded snippet tooltips.
+- Updated the `KeyboardShortcuts` package requirement to version 3.0.1 or newer compatible release.
+- Changed the `Main` global shortcut to open a standalone History/Snippets popup next to the cursor instead of opening the menu-bar status item menu.
+- Migrated the snippet sidebar to `NSOutlineView` so cross-folder snippet drag-and-drop works reliably.
+- Changed snippet attachments to copy selected files into SwiftClip's Application Support storage and clean up managed copies when attachments or snippets are deleted.
 - Kept Mixed Snippet Paste Apps empty by default so no app receives the two-step workaround until the user adds it.
 - Changed app-list preferences to add applications through a standard app picker instead of requiring manual bundle ID entry.
 - Changed app-list preference rows to show resolved `.app` names while keeping bundle IDs as the stored value.
-- Fixed history item pasting so failed pasteboard writes, including invalid file URL history entries, do not trigger auto-paste side effects or clear the existing clipboard.
-- Fixed the Paste Permission window so its Open Settings button does not also trigger Apple's native Accessibility prompt.
-- Normalized snippet folder and snippet ordering on load so persisted `sortIndex` values remain canonical after reload.
+
+## Removed
+
 - Removed the Extensions preferences for delete-on-select and delete-after-paste.
 - Removed the Quit keyboard shortcut display from the standalone shortcut popup to reduce the reserved blank space before submenu arrows.
-- Fixed the snippet editor sidebar by replacing `NavigationSplitView` with `HSplitView`, keeping a 280-point initial width with 260-point minimum and 360-point maximum bounds.
-- Fixed a post-merge build failure in `SnippetStore` by preserving both ordered JSON persistence and managed snippet attachment cleanup.
